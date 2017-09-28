@@ -46,7 +46,8 @@ def main(args):
 
     if step % 100 == 0:
       elapsed = datetime.timedelta(seconds=time.time()-start_time)
-      msg = "Step {:5d} [{}] loss = {:8.5f} cg residual = {:4.2g}".format(step, elapsed, avg_loss.data[0], residual)
+      msg = "Step {:5d} [{}] loss = {:8.5f} cg residual = {:4.2g}".format(
+          step, elapsed, avg_loss.data[0], residual)
       if step > 0:
         msg += " ({:.0f} samples/s)".format(step*args.batch_size/elapsed.seconds)
       log.info(msg)
