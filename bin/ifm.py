@@ -10,6 +10,8 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import cg
 import skimage.io
 
+import torch as th
+
 
 def color_mixture_laplacian(N, inInd, neighInd, flows, weights):
   """ """
@@ -18,9 +20,11 @@ def color_mixture_laplacian(N, inInd, neighInd, flows, weights):
   col_idx = neighInd
 
   Wcm = sp.coo_matrix((np.ravel(flows), (np.ravel(row_idx), np.ravel(col_idx))), shape=(N, N))
+  import ipdb; ipdb.set_trace()
   Wcm = sp.spdiags(np.ravel(weights), 0, N, N).dot(Wcm)
   Lcm = sp.spdiags(np.ravel(np.sum(Wcm, axis=1)), 0, N, N) - Wcm
   Lcm = (Lcm.T).dot(Lcm)
+
   return Lcm
 
 
@@ -39,6 +43,7 @@ def matting_laplacian(N, inInd, flowRows, flowCols, flows, weights):
 
 def similarity_laplacian(N, inInd, neighInd, flows, weights):
   """ """
+
   weights = np.ravel(weights)[inInd]
   nweights = weights.size
   flow_sz = flows.shape[1]
@@ -81,14 +86,13 @@ def main(args):
   N = h*w
 
   # Convert indices from matlab to numpy format
-  CM_inInd = convert_index(CM_inInd, h, w)
-  CM_neighInd = convert_index(CM_neighInd, h, w)
-  LOC_inInd = convert_index(LOC_inInd, h, w)
+  CM_inInd     = convert_index(CM_inInd, h, w)
+  CM_neighInd  = convert_index(CM_neighInd, h, w)
+  LOC_inInd    = convert_index(LOC_inInd, h, w)
   LOC_flowRows = convert_index(LOC_flowRows, h, w)
   LOC_flowCols = convert_index(LOC_flowCols, h, w)
-  IU_inInd = convert_index(IU_inInd, h, w)
-  IU_neighInd = convert_index(IU_neighInd, h, w)
-
+  IU_inInd     = convert_index(IU_inInd, h, w)
+  IU_neighInd  = convert_index(IU_neighInd, h, w)
 
   CM_weights  = np.ones((N,))
   LOC_weights = np.ones((N,))
