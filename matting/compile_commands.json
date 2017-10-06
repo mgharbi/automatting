@@ -1,27 +1,29 @@
 [
     {
         "arguments": [
-            "cc",
-            "-c",
-            "-Wno-unused-result",
-            "-Wsign-compare",
-            "-Wunreachable-code",
-            "-fno-common",
-            "-dynamic",
-            "-DNDEBUG",
-            "-g",
-            "-fwrapv",
-            "-O3",
-            "-Wall",
-            "-Wstrict-prototypes",
-            "-I/Users/mgharbi/.virtualenvs/default/lib/python3.6/site-packages/torch/utils/ffi/../../lib/include",
-            "-I/Users/mgharbi/.virtualenvs/default/lib/python3.6/site-packages/torch/utils/ffi/../../lib/include/TH",
-            "-I/usr/local/Cellar/python3/3.6.2/Frameworks/Python.framework/Versions/3.6/include/python3.6m",
-            "-o",
-            "./Users/mgharbi/Documents/projects/automatting/matting/src/sparse.o",
-            "../../../../../../../Users/mgharbi/Documents/projects/automatting/matting/src/sparse.cpp"
-        ],
-        "directory": "/private/var/folders/24/9wwtldcd63jb9w4dxrv7lvn00000gn/T/tmpkdcwifoy",
-        "file": "../../../../../../../Users/mgharbi/Documents/projects/automatting/matting/src/sparse.cpp"
+            "cc", 
+            "-c", 
+            "-pthread", 
+            "-fno-strict-aliasing", 
+            "-DNDEBUG", 
+            "-g", 
+            "-fwrapv", 
+            "-O2", 
+            "-Wall", 
+            "-Wstrict-prototypes", 
+            "-fPIC", 
+            "-DWITH_CUDA", 
+            "-I/afs/csail.mit.edu/u/g/gharbi/.virtualenvs/default/local/lib/python2.7/site-packages/torch/utils/ffi/../../lib/include", 
+            "-I/afs/csail.mit.edu/u/g/gharbi/.virtualenvs/default/local/lib/python2.7/site-packages/torch/utils/ffi/../../lib/include/TH", 
+            "-I/afs/csail.mit.edu/u/g/gharbi/.virtualenvs/default/local/lib/python2.7/site-packages/torch/utils/ffi/../../lib/include/THC", 
+            "-I/usr/local/cuda/include", 
+            "-I/usr/include/python2.7", 
+            "-std=c99", 
+            "-o", 
+            "src/sparse.o", 
+            "src/sparse.c"
+        ], 
+        "directory": "/afs/csail.mit.edu/u/g/gharbi/projects/automatting/matting/", 
+        "file": "src/sparse.c"
     }
 ]

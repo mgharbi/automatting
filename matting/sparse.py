@@ -1,4 +1,4 @@
-# from .functions.sparse import
+import matting.functions.sparse as spfuncs
 
 class SparseCOO(object):
   """"""
@@ -8,10 +8,11 @@ class SparseCOO(object):
     self.size = size
 
 
-def spadd(s_matA, s_matB):
+def spadd(A, B):
   """Sum of sparse matrices"""
-  # TODO
-  return s_matA
+  op = spfuncs.SpAdd(A.size[0], A.size[1])
+  idx, val = op(A.indices, A.values, B.indices, B.values)
+  return SparseCOO(idx, val, A.size)
 
 
 def sp_gram(s_mat):
