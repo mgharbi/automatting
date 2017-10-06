@@ -25,3 +25,8 @@ int spadd_forward(
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val,
     const int rows, const int cols);
 
+int spmv_forward(
+    THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
+    THCudaTensor *vector,
+    THCudaTensor *output,
+    const int rows, const int cols);

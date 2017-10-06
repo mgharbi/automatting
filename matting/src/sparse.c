@@ -142,3 +142,38 @@ int spadd_forward(
 
   return 0;
 }
+
+
+int spmv_forward(
+    THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
+    THCudaTensor *vector,
+    THCudaTensor *output,
+    const int rows, const int cols) {
+
+  int nnz = THCudaTensor_size(state, val, 0);
+
+  cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+
+  // Setup
+  cusparseMatDescr_t descr=0;
+  THCusparseCheck(cusparseCreateMatDescr(&descr));
+  THCusparseCheck(cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL));
+  THCusparseCheck(cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO));
+
+  int *p_row = THCudaIntTensor_data(state, csr_row);
+  int *p_col = THCudaIntTensor_data(state, csr_col);
+  float *p_val = THCudaTensor_data(state, val);
+  float *p_vector = THCudaTensor_data(state, vector);
+
+  // Assert cols == vec size
+
+  THCudaTensor_resize1d(state, output, cols);
+  float *p_output = THCudaTensor_data(state, output);
+
+  float multiplier = 1.0f;
+  THCusparseCheck(cusparseScsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+        rows, cols, nnz, &multiplier, descr, p_val, p_row, p_col,
+        p_vector, &multiplier, p_output));
+
+  return 0;
+}
