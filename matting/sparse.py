@@ -30,11 +30,6 @@ def spadd(A, B):
       A.csr_row_idx, A.col_idx, A.val,
       B.csr_row_idx, B.col_idx, B.val,
       A.size)
-  # op = spfuncs.SpAdd(A.size[0], A.size[1])
-  # rowC, colC, valC = op.apply(
-  #     A.csr_row_idx, A.col_idx, A.val, 
-  #     B.csr_row_idx, B.col_idx, B.val)
-
   return Sparse(rowC, colC, valC, A.size)
 
 
