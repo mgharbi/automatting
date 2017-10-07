@@ -168,6 +168,7 @@ int spmv_forward(
   // Assert cols == vec size
 
   THCudaTensor_resize1d(state, output, cols);
+  THCudaTensor_zero(state, output);
   float *p_output = THCudaTensor_data(state, output);
 
   float multiplier = 1.0f;

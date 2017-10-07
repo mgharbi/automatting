@@ -37,3 +37,17 @@ class SpAdd(Function):
 
     return grad_rowA, grad_colA, grad_valA, \
            grad_rowB, grad_colB, grad_valB, grad_size
+
+
+class SpMv(Function):
+  """Sparse matrix-vector product."""
+
+  @staticmethod
+  def forward(ctx, row, col, val, vector, size):
+    # ctx.save_for_backward(rowA, colA, rowB, colB, size)
+    output = torch.FloatTensor().cuda()
+    sparse.spmv_forward(
+        row, col, val, 
+        vector, output,
+        size[0], size[1])
+    return output

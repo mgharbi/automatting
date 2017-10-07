@@ -82,3 +82,20 @@ def test_add_different_sparsity():
   assert (row_idx == np.array([0, 2, 3, 4, 5], dtype=np.int32)).all()
   assert (col_idx == np.array([0, 1, 1, 2, 3], dtype=np.int32)).all()
   assert (C.val.data.cpu().numpy() == np.array([1, 1, 2, 2, 2])).all()
+
+
+def test_matrix_vector():
+  row = th.from_numpy(np.array(
+        [0, 1, 2, 3], dtype=np.int32)).cuda()
+  col = th.from_numpy(np.array(
+        [0, 1, 2, 3], dtype=np.int32)).cuda()
+  nnz = row.numel()
+  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  n = 4
+  A = sp.from_coo(row, col, val, th.Size((n, n)))
+
+  A.val = Variable(A.val)
+  v = Variable(th.ones(n)).cuda()
+  
+  out = sp.spmv(A, v)
+  assert (out.data.cpu().numpy() == np.array([0, 1, 2, 3])).all()

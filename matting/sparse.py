@@ -43,9 +43,9 @@ def sp_laplacian(s_mat):
   pass
 
 
-def spmv(s_matA, v):
+def spmv(A, v):
   """Sparse matrix - dense vector product."""
-  pass
+  return spfuncs.SpMv.apply(A.csr_row_idx, A.col_idx, A.val, v, A.size)
 
 
 def spdsm(s_diag, s_mat):
