@@ -29,4 +29,11 @@ int spmv_forward(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
     THCudaTensor *vector,
     THCudaTensor *output,
-    const int rows, const int cols);
+    const int rows, const int cols, const int transpose);
+
+int spmm_forward(
+    THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
+    const int rowsA, const int colsA,
+    THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
+    const int rowsB, const int colsB,
+    THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val);

@@ -1,6 +1,7 @@
 import torch as th
 import matting.functions.sparse as spfuncs
 
+
 def from_coo(row_idx, col_idx, val, size):
   """Construct a sparse matrix from THTensors describing a COO format."""
   csr_row_idx, col_idx, val = spfuncs.coo2csr(row_idx, col_idx, val, size)
@@ -33,21 +34,25 @@ def spadd(A, B):
   return Sparse(rowC, colC, valC, A.size)
 
 
+def spmv(A, v):
+  """Sparse matrix - dense vector product."""
+  return spfuncs.SpMV.apply(A.csr_row_idx, A.col_idx, A.val, v, A.size)
+
+
+def spmm(A, B):
+  """Sparse matrix product."""
+  rowC, colC, valC = spfuncs.SpMM.apply(
+      A.csr_row_idx, A.col_idx, A.val, A.size,
+      B.csr_row_idx, B.col_idx, B.val, B.size)
+  sizeC = th.Size((A.size[0], B.size[1]))
+  return Sparse(rowC, colC, valC, sizeC)
+
+
 def sp_gram(s_mat):
   """A^T.A for A sparse"""
-  pass
+  raise NotImplemented
 
 
 def sp_laplacian(s_mat):
   """diag(row_sum(A)) - A for A sparse"""
-  pass
-
-
-def spmv(A, v):
-  """Sparse matrix - dense vector product."""
-  return spfuncs.SpMv.apply(A.csr_row_idx, A.col_idx, A.val, v, A.size)
-
-
-def spdsm(s_diag, s_mat):
-  """Sparse diagonal - sparse matrix product."""
-  pass
+  raise NotImplemented

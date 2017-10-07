@@ -38,14 +38,9 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *csr_row_idx,
             const int rows, const int cols) {
 
-  if( THCudaIntTensor_nDimension(state, row_idx) != 1) {
-    THError("row_idx should be 1D");
-    return 1;
-  }
-  if( THCudaIntTensor_nDimension(state, col_idx) != 1) {
-    THError("col_idx should be 1D");
-    return 1;
-  }
+  THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1, 0, "row_idx should be 1D");
+  THArgCheck(THCudaIntTensor_nDimension(state, col_idx) == 1, 1, "col_idx should be 1D");
+
   if( THCudaTensor_nDimension(state, val) != 1) {
     THError("val should be 1D");
     return 1;
@@ -148,7 +143,7 @@ int spmv_forward(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
     THCudaTensor *vector,
     THCudaTensor *output,
-    const int rows, const int cols) {
+    const int rows, const int cols, const int transpose) {
 
   int nnz = THCudaTensor_size(state, val, 0);
 
@@ -171,10 +166,83 @@ int spmv_forward(
   THCudaTensor_zero(state, output);
   float *p_output = THCudaTensor_data(state, output);
 
+
+  cusparseOperation_t trans = CUSPARSE_OPERATION_NON_TRANSPOSE;
+  if(transpose == 1) {
+    trans = CUSPARSE_OPERATION_TRANSPOSE;
+  } else {
+  }
+
   float multiplier = 1.0f;
-  THCusparseCheck(cusparseScsrmv(handle, CUSPARSE_OPERATION_NON_TRANSPOSE,
+  THCusparseCheck(cusparseScsrmv(handle, trans,
         rows, cols, nnz, &multiplier, descr, p_val, p_row, p_col,
         p_vector, &multiplier, p_output));
+
+  return 0;
+}
+
+int spmm_forward(
+    THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
+    const int rowsA, const int colsA,
+    THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
+    const int rowsB, const int colsB,
+    THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
+
+  THAssertMsg(colsA == rowsB, "spmm: A and B should have compatible inner dimensions.");
+
+  int nnzA = THCudaTensor_size(state, A_val, 0);
+  int nnzB = THCudaTensor_size(state, B_val, 0);
+
+  cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+
+  // Setup
+  cusparseMatDescr_t descr=0;
+  THCusparseCheck(cusparseCreateMatDescr(&descr));
+  THCusparseCheck(cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL));
+  THCusparseCheck(cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO));
+
+  int *p_rowA = THCudaIntTensor_data(state, A_csr_row);
+  int *p_colA = THCudaIntTensor_data(state, A_csr_col);
+  float *p_valA = THCudaTensor_data(state, A_val);
+
+  int *p_rowB = THCudaIntTensor_data(state, B_csr_row);
+  int *p_colB = THCudaIntTensor_data(state, B_csr_col);
+  float *p_valB = THCudaTensor_data(state, B_val);
+
+  THCudaIntTensor_resize1d(state, C_csr_row, rowsA+1);
+  int *p_rowC = THCudaIntTensor_data(state, C_csr_row);
+
+  cusparseOperation_t transA = CUSPARSE_OPERATION_NON_TRANSPOSE;
+  cusparseOperation_t transB = CUSPARSE_OPERATION_NON_TRANSPOSE;
+
+  int nnzC;
+  int* nnzTotalDevHostPtr = &nnzC;
+  cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  // nnzTotalDevHostPtr points to host memory
+  THCusparseCheck(cusparseXcsrgemmNnz(
+      handle, transA, transB, rowsA, rowsB, colsA,
+      descr, nnzA, p_rowA, p_colA,
+      descr, nnzB, p_rowB, p_colB,
+      descr, p_rowC, nnzTotalDevHostPtr));
+
+  if(NULL != nnzTotalDevHostPtr) {
+    nnzC = *nnzTotalDevHostPtr;
+  } else {
+    int baseC;
+    THCudaCheck(cudaMemcpy(&nnzC, p_rowC+rowsA, sizeof(int), cudaMemcpyDeviceToHost));
+    THCudaCheck(cudaMemcpy(&baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
+    nnzC -= baseC;
+  }
+
+  THCudaIntTensor_resize1d(state, C_csr_col, nnzC);
+  THCudaTensor_resize1d(state, C_val, nnzC);
+  int *p_colC = THCudaIntTensor_data(state, C_csr_col);
+  float *p_valC = THCudaTensor_data(state, C_val);
+
+  THCusparseCheck(cusparseScsrgemm(
+      handle, transA, transB, rowsA, rowsB, colsA,
+      descr, nnzA, p_valA, p_rowA, p_colA,
+      descr, nnzB, p_valB, p_rowB, p_colB,
+      descr, p_valC, p_rowC, p_colC));
 
   return 0;
 }

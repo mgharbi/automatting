@@ -1,19 +1,11 @@
 import numpy as np
 import torch as th
 from torch.autograd import Variable
+from torch.autograd import gradcheck
+# from torch.autograd import profiler
 
 import matting.sparse as sp
 
-# def test_forward():
-#   n = 10
-#   mtx_rows = th.cat([th.LongTensor(range(n))]*2).view(1, -1)
-#   mtx_cols = th.cat([th.zeros(n).type(th.LongTensor), th.LongTensor(range(n))]).view(1, -1)
-#   mtx_indices = Variable(th.cat([mtx_rows, mtx_cols], 0))
-#   mtx_values  = Variable(th.FloatTensor(range(2*n)))
-#   vector = Variable(th.ones(n))
-#
-#   out = spmv(mtx_indices, mtx_values, vector, n, n)
-#   print(out)
 
 def test_coo2csr():
   row = th.from_numpy(np.array(
@@ -94,8 +86,73 @@ def test_matrix_vector():
   n = 4
   A = sp.from_coo(row, col, val, th.Size((n, n)))
 
-  A.val = Variable(A.val)
-  v = Variable(th.ones(n)).cuda()
+  A.val = Variable(A.val, requires_grad=True)
+  A.csr_row_idx = Variable(A.csr_row_idx)
+  A.col_idx = Variable(A.col_idx)
+  v = Variable(th.ones(n).cuda(), requires_grad=True)
   
-  out = sp.spmv(A, v)
-  assert (out.data.cpu().numpy() == np.array([0, 1, 2, 3])).all()
+  # out = sp.spmv(A, v)
+  # assert (out.data.cpu().numpy() == np.array([0, 1, 2, 3])).all()
+
+  # print("Done with forward pass")
+  #
+  # loss = th.sum(out)
+  # loss.backward()
+
+  # print("Done with backward pass")
+  test = gradcheck(sp.spmv, (A, v), eps=1e-6, atol=1e-4, raise_exception=True)
+
+  assert test
+
+
+def test_multiply_same_sparsity():
+  row = th.from_numpy(np.array(
+        [0, 1, 2, 3], dtype=np.int32)).cuda()
+  col = th.from_numpy(np.array(
+        [0, 1, 2, 3], dtype=np.int32)).cuda()
+  nnz = row.numel()
+  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  n = 4
+  A = sp.from_coo(row, col, val, th.Size((n, n)))
+
+  val = th.from_numpy(np.array([3, 6, 1, 8], dtype=np.float32)).cuda()
+  B = sp.from_coo(row, col, val, th.Size((n, n)))
+
+  A.val = Variable(A.val)
+  B.val = Variable(B.val)
+  
+  C = sp.spmm(A, B)
+  assert (C.val.data.cpu().numpy() == np.array([0, 6, 2, 24])).all()
+
+
+def test_multiply_different_sparsity():
+  n = 4
+  row = th.from_numpy(np.array(
+        [0, 0, 1, 2, 3], dtype=np.int32)).cuda()
+  col = th.from_numpy(np.array(
+        [0, 3, 1, 2, 3], dtype=np.int32)).cuda()
+  nnz = row.numel()
+  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
+  A = sp.from_coo(row, col, val, th.Size((n, n)))
+
+  row = th.from_numpy(np.array(
+        [0, 1, 2, 3], dtype=np.int32)).cuda()
+  col = th.from_numpy(np.array(
+        [1, 1, 2, 3], dtype=np.int32)).cuda()
+  nnz = row.numel()
+  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
+  B = sp.from_coo(row, col, val, th.Size((n, n)))
+
+  A.val = Variable(A.val)
+  B.val = Variable(B.val)
+  
+  C = sp.spmm(A, B)
+
+  row_idx = C.csr_row_idx.data.cpu().numpy()
+  col_idx = C.col_idx.data.cpu().numpy()
+  val = C.val.data.cpu().numpy()
+  assert (row_idx == np.array([0, 2, 3, 4, 5], dtype=np.int32)).all()
+  assert (col_idx == np.array([1, 3, 1, 2, 3], dtype=np.int32)).all()
+  assert (C.val.data.cpu().numpy() == np.array([1, 1, 1, 1, 1])).all()
+
+
