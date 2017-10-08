@@ -1,6 +1,8 @@
 import torch as th
 import matting.functions.sparse as spfuncs
 
+from torch.autograd import Variable
+
 
 def from_coo(row_idx, col_idx, val, size):
   """Construct a sparse matrix from THTensors describing a COO format."""
@@ -16,6 +18,11 @@ class Sparse(object):
     self.val = val
     self.size = size
     self.storage = "csr"
+
+  def make_variable(self):
+    self.csr_row_idx = Variable(self.csr_row_idx)
+    self.col_idx = Variable(self.col_idx)
+    self.val = Variable(self.val, requires_grad=True)
 
   def __str__(self):
     s = "Sparse matrix {}\n".format(self.size)

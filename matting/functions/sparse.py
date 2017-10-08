@@ -41,6 +41,8 @@ class SpAdd(Function):
     grad_rowA = grad_colA = grad_valA = None
     grad_rowB = grad_colB = grad_valB = None
     grad_size = None
+    grad_alpha = None
+    grad_beta = None
 
     # dL/dA_ik = dL/dC_ik*dC_ik/dA_ik where
     # dC_ik/dA_ik = 1 iff A_ik != 0
@@ -57,7 +59,7 @@ class SpAdd(Function):
     grad_valB = Variable(grad_valB)
 
     return grad_rowA, grad_colA, grad_valA, \
-           grad_rowB, grad_colB, grad_valB, grad_size
+           grad_rowB, grad_colB, grad_valB, grad_size, grad_alpha, grad_beta
 
 
 class SpMV(Function):

@@ -5,7 +5,32 @@ from torch.autograd import gradcheck
 # from torch.autograd import profiler
 
 import matting.sparse as sp
+import matting.functions.sparse as spfuncs
 
+def _get_random_sparse_matrix(nrows, ncols, nnz):
+  row = th.from_numpy(np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)).cuda()
+  col = th.from_numpy(np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)).cuda()
+  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  A = sp.from_coo(row, col, val, th.Size((nrows, ncols)))
+  return A
+
+def test_spadd_function():
+  np.random.seed(0)
+
+  for i in range(10):
+    nrows = np.random.randint(3,10)
+    ncols = np.random.randint(3,10)
+    nnz = np.random.randint(1,nrows*ncols/2)
+    A = _get_random_sparse_matrix(nrows, ncols, nnz)
+    B = _get_random_sparse_matrix(nrows, ncols, nnz)
+
+    A.make_variable()
+    B.make_variable()
+
+    gradcheck(spfuncs.SpAdd.apply,
+        (A.csr_row_idx, A.col_idx, A.val,
+         B.csr_row_idx, B.col_idx, B.val,
+         A.size, 1.0, 1.0), eps=1e-4, atol=5e-4, rtol=1e-3, raise_exception=True)
 
 def test_coo2csr():
   row = th.from_numpy(np.array(
