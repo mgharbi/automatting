@@ -68,6 +68,7 @@ class SpMV(Function):
   @staticmethod
   def forward(ctx, row, col, val, vector, size):
     ctx.save_for_backward(row, col, val, vector)
+    ctx.matrix_size = size
     output = vector.new() 
     sparse.spmv(
         row, col, val, 
@@ -78,24 +79,22 @@ class SpMV(Function):
   @staticmethod
   def backward(ctx, grad_output):
     row, col, val, vector = ctx.saved_variables
+    size = ctx.matrix_size
     grad_row = grad_col = grad_val = None
     grad_vector = None
     grad_size = None
-
-    nrows = row.data.shape[0]-1
-    ncols = vector.data.shape[0]
 
     grad_vector = vector.data.new()
     sparse.spmv(
         row.data, col.data, val.data, 
         grad_output.data, grad_vector,
-        nrows, ncols, True)
+        size[0], size[1], True)
 
     grad_val = val.data.new()
     sparse.spmv_backward_matrix(
         row.data, col.data, 
         vector.data, grad_output.data, grad_val,
-        nrows, ncols)
+        size[0], size[1])
 
     grad_vector = Variable(grad_vector)
     grad_val = Variable(grad_val)

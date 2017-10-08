@@ -19,10 +19,10 @@ class Sparse(object):
     self.size = size
     self.storage = "csr"
 
-  def make_variable(self):
+  def make_variable(self, requires_grad=True):
     self.csr_row_idx = Variable(self.csr_row_idx)
     self.col_idx = Variable(self.col_idx)
-    self.val = Variable(self.val, requires_grad=True)
+    self.val = Variable(self.val, requires_grad=requires_grad)
 
   def __str__(self):
     s = "Sparse matrix {}\n".format(self.size)

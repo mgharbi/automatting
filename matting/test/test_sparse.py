@@ -8,18 +8,29 @@ import matting.sparse as sp
 import matting.functions.sparse as spfuncs
 
 def _get_random_sparse_matrix(nrows, ncols, nnz):
-  row = th.from_numpy(np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)).cuda()
-  col = th.from_numpy(np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)).cuda()
-  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
+  col = np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)
+
+  tuples = [(a, b) for a, b in zip(row, col)]
+  unique_tuples = sorted(set(tuples), key=lambda x: tuples.index(x))
+  row, col = zip(*unique_tuples)
+  row = np.array(row)
+  col = np.array(col)
+  nnz = row.size
+
+  row = th.from_numpy(row).cuda()
+  col = th.from_numpy(col).cuda()
+  val = th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda()
   A = sp.from_coo(row, col, val, th.Size((nrows, ncols)))
   return A
+
 
 def test_spadd_function():
   np.random.seed(0)
 
   for i in range(10):
-    nrows = np.random.randint(3,10)
-    ncols = np.random.randint(3,10)
+    nrows = np.random.randint(3,8)
+    ncols = np.random.randint(3,8)
     nnz = np.random.randint(1,nrows*ncols/2)
     A = _get_random_sparse_matrix(nrows, ncols, nnz)
     B = _get_random_sparse_matrix(nrows, ncols, nnz)
@@ -30,7 +41,29 @@ def test_spadd_function():
     gradcheck(spfuncs.SpAdd.apply,
         (A.csr_row_idx, A.col_idx, A.val,
          B.csr_row_idx, B.col_idx, B.val,
-         A.size, 1.0, 1.0), eps=1e-4, atol=5e-4, rtol=1e-3, raise_exception=True)
+         A.size, 1.0, 1.0), eps=1e-4, atol=1e-5, rtol=1e-3,
+         raise_exception=True)
+
+
+def test_spmv_function():
+  np.random.seed(0)
+
+  for i in range(10):
+    nrows = np.random.randint(3,10)
+    ncols = np.random.randint(3,10)
+    nnz = np.random.randint(1,nrows*ncols/2)
+    A = _get_random_sparse_matrix(nrows, ncols, nnz)
+    vector = th.from_numpy(
+        np.random.uniform(size=(ncols,)).astype(np.float32)).cuda()
+
+    A.make_variable()
+    vector = Variable(vector, requires_grad=True)
+
+    gradcheck(spfuncs.SpMV.apply,
+        (A.csr_row_idx, A.col_idx, A.val,
+         vector, A.size), eps=1e-6, atol=1e-5, rtol=1e-3,
+         raise_exception=True)
+
 
 def test_coo2csr():
   row = th.from_numpy(np.array(
