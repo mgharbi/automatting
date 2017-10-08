@@ -88,7 +88,7 @@ def test_matrix_vector():
   n = 4
   A = sp.from_coo(row, col, val, th.Size((n, n+1)))
 
-  A.val = Variable(A.val, requires_grad=False)
+  A.val = Variable(A.val, requires_grad=True)
   A.csr_row_idx = Variable(A.csr_row_idx)
   A.col_idx = Variable(A.col_idx)
   v = Variable(th.ones(n+1).cuda(), requires_grad=True)
@@ -101,7 +101,9 @@ def test_matrix_vector():
   loss.backward()
   assert np.amax(np.abs(v.grad.data.cpu().numpy() - np.array([0, 1, 2, 3, 0]))) < 1e-5
 
-  gradcheck(sp.spmv, (A, v), eps=1e-4, atol=1e-18, raise_exception=True)
+  print A.val.grad
+
+  gradcheck(sp.spmv, (A, v), eps=1e-4, atol=1e-6, raise_exception=True)
 
 
 def test_multiply_same_sparsity():

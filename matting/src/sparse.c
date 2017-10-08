@@ -140,7 +140,7 @@ int spadd_forward(
 }
 
 
-int spmv_forward(
+int spmv(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
     THCudaTensor *vector,
     THCudaTensor *output,
