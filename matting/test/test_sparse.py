@@ -52,6 +52,7 @@ def test_spmv_function():
     nrows = np.random.randint(3,10)
     ncols = np.random.randint(3,10)
     nnz = np.random.randint(1,nrows*ncols/2)
+
     A = _get_random_sparse_matrix(nrows, ncols, nnz)
     vector = th.from_numpy(
         np.random.uniform(size=(ncols,)).astype(np.float32)).cuda()
@@ -61,7 +62,7 @@ def test_spmv_function():
 
     gradcheck(spfuncs.SpMV.apply,
         (A.csr_row_idx, A.col_idx, A.val,
-         vector, A.size), eps=1e-6, atol=1e-5, rtol=1e-3,
+         vector, A.size), eps=1e-3, atol=1e-4, rtol=1e-3,
          raise_exception=True)
 
 
