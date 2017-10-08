@@ -99,9 +99,9 @@ def test_matrix_vector():
 
   loss = out.sum()
   loss.backward()
-  assert np.amax(np.abs(v.grad.data.cpu().numpy() - np.array([0, 1, 2, 3, 0]))) < 1e-5
 
-  print A.val.grad
+  assert np.amax(np.abs(v.grad.data.cpu().numpy() - np.array([0, 1, 2, 3, 0]))) < 1e-5
+  assert np.amax(np.abs(A.val.grad.data.cpu().numpy() - np.array([1, 1, 1, 1]))) < 1e-5
 
   gradcheck(sp.spmv, (A, v), eps=1e-4, atol=1e-6, raise_exception=True)
 

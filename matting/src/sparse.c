@@ -294,6 +294,11 @@ int spmv_backward_matrix(
   int *p_csrCol = THCudaIntTensor_data(state, csr_col);
   /* float *p_cooVal = THCudaTensor_data(state, val); */
 
+  csr_row = THCudaIntTensor_newContiguous(state, csr_row);
+  csr_col = THCudaIntTensor_newContiguous(state, csr_col);
+  vector = THCudaTensor_newContiguous(state, vector);
+  grad_output = THCudaTensor_newContiguous(state, grad_output);
+
   int* p_cooRow;
   THCudaCheck(THCudaMalloc(state, (void**) &p_cooRow, nnz*sizeof(int)));
   THCusparseCheck(cusparseXcsr2coo(
@@ -305,9 +310,13 @@ int spmv_backward_matrix(
   float* p_vector = THCudaTensor_data(state, vector);
   float* p_grad_output = THCudaTensor_data(state, grad_output);
   float* p_grad_matrix = THCudaTensor_data(state, grad_matrix);
-  spmv_backward_matrix_cuda(p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, rows, cols);
+  spmv_backward_matrix_cuda(p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, rows, cols, nnz);
 
   THCudaCheck(THCudaFree(state, p_cooRow));
+  THCudaIntTensor_free(state, csr_row);
+  THCudaIntTensor_free(state, csr_col);
+  THCudaTensor_free(state, vector);
+  THCudaTensor_free(state, grad_output);
 
   return 0;
 }

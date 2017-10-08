@@ -75,7 +75,7 @@ class SpMV(Function):
     grad_val = val.data.new()
     sparse.spmv_backward_matrix(
         row.data, col.data, 
-        grad_vector, grad_output.data, grad_val,
+        vector.data, grad_output.data, grad_val,
         nrows, ncols)
 
     grad_vector = Variable(grad_vector)
