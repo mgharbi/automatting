@@ -5,6 +5,7 @@
 
 extern THCState *state;
 
+
 void sortCOOMatrix(
     const int rows, const int cols, const int nnz,
     int* p_cooRow, int* p_cooCol, float* p_cooVal) {
@@ -42,6 +43,8 @@ int coo2csr(THCudaIntTensor *row_idx,
 
   THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1, 0, "row_idx should be 1D");
   THArgCheck(THCudaIntTensor_nDimension(state, col_idx) == 1, 1, "col_idx should be 1D");
+
+  // TODO: refcounting
 
   if( THCudaTensor_nDimension(state, val) != 1) {
     THError("val should be 1D");
@@ -89,6 +92,8 @@ int spadd_forward(
   int nnzB = THCudaTensor_size(state, B_val, 0);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+  
+  // TODO: refcounting
 
   // Setup
   cusparseMatDescr_t descr=0;
@@ -219,8 +224,8 @@ int spmv_backward_matrix(
   int nnz = THCudaIntTensor_size(state, csr_col, 0);
   int *p_csrRow = THCudaIntTensor_data(state, csr_row);
   int *p_csrCol = THCudaIntTensor_data(state, csr_col);
-  /* float *p_cooVal = THCudaTensor_data(state, val); */
 
+  // Grab references
   csr_row = THCudaIntTensor_newContiguous(state, csr_row);
   csr_col = THCudaIntTensor_newContiguous(state, csr_col);
   vector = THCudaTensor_newContiguous(state, vector);
@@ -239,7 +244,10 @@ int spmv_backward_matrix(
   float* p_grad_matrix = THCudaTensor_data(state, grad_matrix);
   spmv_backward_matrix_cuda(p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, rows, cols, nnz);
 
+  // Free scratch data
   THCudaCheck(THCudaFree(state, p_cooRow));
+
+  // Release references
   THCudaIntTensor_free(state, csr_row);
   THCudaIntTensor_free(state, csr_col);
   THCudaTensor_free(state, vector);
@@ -262,6 +270,8 @@ int spmm_forward(
   int nnzB = THCudaTensor_size(state, B_val, 0);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+  
+  // TODO: refcounting
 
   // Setup
   cusparseMatDescr_t descr=0;
@@ -321,5 +331,3 @@ int spmm_forward(
 
   return 0;
 }
-
-
