@@ -13,7 +13,8 @@ class SpAdd(Function):
   """Sum of sparse matrices."""
 
   @staticmethod
-  def forward(ctx, rowA, colA, valA, rowB, colB, valB, size):
+  def forward(ctx, rowA, colA, valA, rowB, colB, valB, size,
+      alpha=1.0, beta=1.0):
     ctx.save_for_backward(rowA, colA, rowB, colB, size)
     rowC = torch.IntTensor().cuda()
     colC = torch.IntTensor().cuda()
@@ -22,6 +23,7 @@ class SpAdd(Function):
         rowA, colA, valA, 
         rowB, colB, valB, 
         rowC, colC, valC, 
+        alpha, beta,
         size[0], size[1])
     return rowC, colC, valC
 
@@ -52,6 +54,10 @@ class SpMV(Function):
         row, col, val, 
         vector, output,
         size[0], size[1], False)
+    sparse.spmv_forward(
+        row, col, val, 
+        vector, output,
+        size[0], size[1], False)
     return output
 
   @staticmethod
@@ -64,16 +70,22 @@ class SpMV(Function):
     nrows = row.data.shape[0]-1
     ncols = vector.data.shape[0]
 
-    grad_vector = vector.data.new()
-
+    grad_vector = vector.data.new().cuda()
     sparse.spmv_forward(
         row.data, col.data, val.data, 
         grad_output.data, grad_vector,
         nrows, ncols, True)
 
+    # grad_val = val.data.new()
+    # sparse.spmv_backward_matrix(
+    #     row.data, col.data, 
+    #     grad_vector, grad_output.data, grad_val,
+    #     nrows, ncols)
+
     grad_vector = Variable(grad_vector)
 
-    grad_val = val
+    # grad_vector = vector
+    # grad_val = Variable(grad_val)
 
     return grad_row, grad_col, grad_val, grad_vector, grad_size
 
@@ -88,7 +100,7 @@ class SpMM(Function):
     colC = torch.IntTensor().cuda()
     valC = torch.FloatTensor().cuda()
     sparse.spmm_forward(
-        rowA, colA, valA, sizeA[0], sizeA[1],
-        rowB, colB, valB, sizeB[0], sizeB[1],
+        rowA, colA, valA, sizeA[0], sizeA[1], False,
+        rowB, colB, valB, sizeB[0], sizeB[1], False,
         rowC, colC, valC)
     return rowC, colC, valC

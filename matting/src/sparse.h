@@ -23,7 +23,7 @@ int spadd_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val,
-    const int rows, const int cols);
+    const float alpha, const float beta, const int rows, const int cols);
 
 int spmv_forward(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
@@ -31,9 +31,17 @@ int spmv_forward(
     THCudaTensor *output,
     const int rows, const int cols, const int transpose);
 
+
+int spmv_backward_matrix(
+    THCudaIntTensor *csr_row, THCudaIntTensor *csr_col,
+    THCudaTensor *vector,
+    THCudaTensor *grad_output,
+    THCudaTensor *grad_matrix,
+    const int rows, const int cols);
+
 int spmm_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
-    const int rowsA, const int colsA,
+    const int rowsA, const int colsA, int transposeA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
-    const int rowsB, const int colsB,
+    const int rowsB, const int colsB, int transposeB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val);

@@ -1,6 +1,8 @@
 #include <THC/THC.h>
 #include <stdio.h>
 
+#include "sparse_kernel.h"
+
 extern THCState *state;
 
 void sortCOOMatrix(
@@ -81,7 +83,7 @@ int spadd_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val,
-    const int rows, const int cols) {
+    const float alpha, const float beta, const int rows, const int cols) {
 
   int nnzA = THCudaTensor_size(state, A_val, 0);
   int nnzB = THCudaTensor_size(state, B_val, 0);
@@ -128,11 +130,10 @@ int spadd_forward(
   int *p_colC = THCudaIntTensor_data(state, C_csr_col);
   float *p_valC = THCudaTensor_data(state, C_val);
 
-  float multiplier = 1.0f;
   THCusparseCheck(cusparseScsrgeam(
       handle, rows, cols,
-      &multiplier, descr, nnzA, p_valA, p_rowA, p_colA,
-      &multiplier, descr, nnzB, p_valB, p_rowB, p_colB,
+      &alpha, descr, nnzA, p_valA, p_rowA, p_colA,
+      &beta, descr, nnzB, p_valB, p_rowB, p_colB,
       descr, p_valC, p_rowC, p_colC));
 
   return 0;
@@ -147,6 +148,30 @@ int spmv_forward(
 
   int nnz = THCudaTensor_size(state, val, 0);
 
+  THCAssertSameGPU(THCudaTensor_checkGPU(state, 5, csr_row, csr_col, val, vector, output));
+
+  csr_row = THCudaIntTensor_newContiguous(state, csr_row);
+  csr_col = THCudaIntTensor_newContiguous(state, csr_col);
+  val = THCudaTensor_newContiguous(state, val);
+  vector = THCudaTensor_newContiguous(state, vector);
+
+  THArgCheck(rows+1 == THCudaIntTensor_size(state, csr_row, 0), 0,
+      "csr rows should have rows+1 entries");
+  THArgCheck(nnz == THCudaIntTensor_size(state, csr_col, 0), 1,
+      "csr cols should have nnz entries");
+
+  int vector_size = THCudaTensor_size(state, vector, 0);
+  if(transpose == 1) {
+    THArgCheck(rows == vector_size,
+        3, "rows should match vector size in transpose mode got %d expected %d", rows, vector_size);
+    THCudaTensor_resize1d(state, output, cols);
+  } else {
+    THArgCheck(cols == vector_size,
+        3, "cols should match vector size in non-transpose mode");
+    THCudaTensor_resize1d(state, output, rows);
+  }
+  THCudaTensor_zero(state, output);
+
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
 
   // Setup
@@ -160,32 +185,33 @@ int spmv_forward(
   float *p_val = THCudaTensor_data(state, val);
   float *p_vector = THCudaTensor_data(state, vector);
 
-  // Assert cols == vec size
-
-  THCudaTensor_resize1d(state, output, cols);
-  THCudaTensor_zero(state, output);
   float *p_output = THCudaTensor_data(state, output);
-
 
   cusparseOperation_t trans = CUSPARSE_OPERATION_NON_TRANSPOSE;
   if(transpose == 1) {
     trans = CUSPARSE_OPERATION_TRANSPOSE;
-  } else {
   }
 
+  /* TODO(mgharbi): more accurate version when transposing: */
+  /* convert to CSC and run with NON_TRANSPOSE. */
   float multiplier = 1.0f;
   THCusparseCheck(cusparseScsrmv(handle, trans,
         rows, cols, nnz, &multiplier, descr, p_val, p_row, p_col,
         p_vector, &multiplier, p_output));
 
+  THCudaIntTensor_free(state, csr_row);
+  THCudaIntTensor_free(state, csr_col);
+  THCudaTensor_free(state, val);
+  THCudaTensor_free(state, vector);
   return 0;
 }
 
+
 int spmm_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
-    const int rowsA, const int colsA,
+    const int rowsA, const int colsA, int transposeA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
-    const int rowsB, const int colsB,
+    const int rowsB, const int colsB, int transposeB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
 
   THAssertMsg(colsA == rowsB, "spmm: A and B should have compatible inner dimensions.");
@@ -215,6 +241,13 @@ int spmm_forward(
   cusparseOperation_t transA = CUSPARSE_OPERATION_NON_TRANSPOSE;
   cusparseOperation_t transB = CUSPARSE_OPERATION_NON_TRANSPOSE;
 
+  /* if(transposeA == 1) { */
+  /*   transA = CUSPARSE_OPERATION_TRANSPOSE; */
+  /* } */
+  /* if(transposeB == 1) { */
+  /*   transB = CUSPARSE_OPERATION_TRANSPOSE; */
+  /* } */
+
   int nnzC;
   int* nnzTotalDevHostPtr = &nnzC;
   cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  // nnzTotalDevHostPtr points to host memory
@@ -243,6 +276,38 @@ int spmm_forward(
       descr, nnzA, p_valA, p_rowA, p_colA,
       descr, nnzB, p_valB, p_rowB, p_colB,
       descr, p_valC, p_rowC, p_colC));
+
+  return 0;
+}
+
+
+int spmv_backward_matrix(
+    THCudaIntTensor *csr_row, THCudaIntTensor *csr_col,
+    THCudaTensor *vector,
+    THCudaTensor *grad_output, THCudaTensor *grad_matrix,
+    const int rows, const int cols) {
+
+  cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+
+  int nnz = THCudaIntTensor_size(state, csr_col, 0);
+  int *p_csrRow = THCudaIntTensor_data(state, csr_row);
+  int *p_csrCol = THCudaIntTensor_data(state, csr_col);
+  /* float *p_cooVal = THCudaTensor_data(state, val); */
+
+  int* p_cooRow;
+  THCudaCheck(THCudaMalloc(state, (void**) &p_cooRow, nnz*sizeof(int)));
+  THCusparseCheck(cusparseXcsr2coo(
+      handle, p_csrRow, nnz, rows, p_cooRow, CUSPARSE_INDEX_BASE_ZERO));
+
+  THCudaTensor_resize1d(state, grad_matrix, nnz);
+  THCudaTensor_zero(state, grad_matrix);
+
+  float* p_vector = THCudaTensor_data(state, vector);
+  float* p_grad_output = THCudaTensor_data(state, grad_output);
+  float* p_grad_matrix = THCudaTensor_data(state, grad_matrix);
+  spmv_backward_matrix_cuda(p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, rows, cols);
+
+  THCudaCheck(THCudaFree(state, p_cooRow));
 
   return 0;
 }
