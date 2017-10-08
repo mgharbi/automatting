@@ -25,6 +25,13 @@ int spadd_forward(
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val,
     const float alpha, const float beta, const int rows, const int cols);
 
+int spadd_backward(
+    THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *gradA,
+    THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *gradB,
+    THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *gradC,
+    const float alpha, const float beta, const int rows, const int cols);
+
+
 int spmv(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
     THCudaTensor *vector,
