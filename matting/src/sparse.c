@@ -93,7 +93,13 @@ int spadd_forward(
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   
-  // TODO: refcounting
+  // Grab reference
+  A_csr_row = THCudaIntTensor_newContiguous(state, A_csr_row);
+  A_csr_col = THCudaIntTensor_newContiguous(state, A_csr_col);
+  A_val = THCudaTensor_newContiguous(state, A_val);
+  B_csr_row = THCudaIntTensor_newContiguous(state, B_csr_row);
+  B_csr_col = THCudaIntTensor_newContiguous(state, B_csr_col);
+  B_val = THCudaTensor_newContiguous(state, B_val);
 
   // Setup
   cusparseMatDescr_t descr=0;
@@ -141,6 +147,12 @@ int spadd_forward(
       &beta, descr, nnzB, p_valB, p_rowB, p_colB,
       descr, p_valC, p_rowC, p_colC));
 
+  // Release references
+  THCudaIntTensor_free(state, A_csr_row);
+  THCudaIntTensor_free(state, A_csr_col);
+  THCudaIntTensor_free(state, B_csr_row);
+  THCudaIntTensor_free(state, B_csr_col);
+  
   return 0;
 }
 
@@ -293,6 +305,10 @@ int spmv_backward_matrix(
     THCudaTensor *grad_output, THCudaTensor *grad_matrix,
     const int rows, const int cols) {
 
+  // C = AB
+  // dL/dA = dL/dC.Bt
+  // dL/dB = At.dL/dC
+
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
 
   int nnz = THCudaIntTensor_size(state, csr_col, 0);
@@ -345,7 +361,13 @@ int spmm_forward(
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   
-  // TODO: refcounting
+  // Grab reference
+  A_csr_row = THCudaIntTensor_newContiguous(state, A_csr_row);
+  A_csr_col = THCudaIntTensor_newContiguous(state, A_csr_col);
+  A_val = THCudaTensor_newContiguous(state, A_val);
+  B_csr_row = THCudaIntTensor_newContiguous(state, B_csr_row);
+  B_csr_col = THCudaIntTensor_newContiguous(state, B_csr_col);
+  B_val = THCudaTensor_newContiguous(state, B_val);
 
   // Setup
   cusparseMatDescr_t descr=0;
@@ -402,6 +424,12 @@ int spmm_forward(
       descr, nnzA, p_valA, p_rowA, p_colA,
       descr, nnzB, p_valB, p_rowB, p_colB,
       descr, p_valC, p_rowC, p_colC));
+  
+  // Release references
+  THCudaIntTensor_free(state, A_csr_row);
+  THCudaIntTensor_free(state, A_csr_col);
+  THCudaIntTensor_free(state, B_csr_row);
+  THCudaIntTensor_free(state, B_csr_col);
 
   return 0;
 }
