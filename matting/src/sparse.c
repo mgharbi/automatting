@@ -20,14 +20,20 @@ void sortCOOMatrix(
   int* permutation;
   THCudaCheck(THCudaMalloc(state, (void**) &permutation, nnz*sizeof(int)));
   int* pBuffer;
-  THCudaCheck(THCudaMalloc(state, (void**) &pBuffer, pBufferSizeInBytes*sizeof(char)));
+  THCudaCheck(
+      THCudaMalloc(state, (void**) &pBuffer, pBufferSizeInBytes*sizeof(char)));
   float* sortedVals;
   THCudaCheck(THCudaMalloc(state, (void**) &sortedVals, nnz*sizeof(float)));
 
-  THCusparseCheck(cusparseCreateIdentityPermutation(handle, nnz, permutation));
-  THCusparseCheck(cusparseXcoosortByRow(handle, rows, cols, nnz, p_cooRow, p_cooCol, permutation, pBuffer));
-  THCusparseCheck(cusparseSgthr(handle, nnz, p_cooVal, sortedVals, permutation, CUSPARSE_INDEX_BASE_ZERO));
-  THCudaCheck(cudaMemcpy(p_cooVal, sortedVals, nnz*sizeof(float), cudaMemcpyDeviceToDevice));
+  THCusparseCheck(cusparseCreateIdentityPermutation(
+        handle, nnz, permutation));
+  THCusparseCheck(cusparseXcoosortByRow(
+        handle, rows, cols, nnz, p_cooRow, p_cooCol, permutation, pBuffer));
+  THCusparseCheck(cusparseSgthr(
+        handle, nnz, p_cooVal, sortedVals, 
+        permutation, CUSPARSE_INDEX_BASE_ZERO));
+  THCudaCheck(cudaMemcpy(
+        p_cooVal, sortedVals, nnz*sizeof(float), cudaMemcpyDeviceToDevice));
 
   THCudaCheck(THCudaFree(state, sortedVals));
   THCudaCheck(THCudaFree(state, pBuffer));
@@ -41,8 +47,10 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *csr_row_idx,
             const int rows, const int cols) {
 
-  THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1, 0, "row_idx should be 1D");
-  THArgCheck(THCudaIntTensor_nDimension(state, col_idx) == 1, 1, "col_idx should be 1D");
+  THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1,
+                                        0, "row_idx should be 1D");
+  THArgCheck(THCudaIntTensor_nDimension(state, col_idx) == 1,
+                                        1, "col_idx should be 1D");
 
   // Grab reference
   row_idx = THCudaIntTensor_newContiguous(state, row_idx);
@@ -127,7 +135,8 @@ int spadd_forward(
 
   int nnzC;
   int* nnzTotalDevHostPtr = &nnzC;
-  cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  // nnzTotalDevHostPtr points to host memory
+  // nnzTotalDevHostPtr points to host memory
+  cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  
   THCusparseCheck(cusparseXcsrgeamNnz(
       handle, rows, cols,
       descr, nnzA, p_rowA, p_colA,
@@ -138,8 +147,10 @@ int spadd_forward(
     nnzC = *nnzTotalDevHostPtr;
   } else {
     int baseC;
-    THCudaCheck(cudaMemcpy(&nnzC, p_rowC+rows, sizeof(int), cudaMemcpyDeviceToHost));
-    THCudaCheck(cudaMemcpy(&baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
+    THCudaCheck(
+        cudaMemcpy(&nnzC, p_rowC+rows, sizeof(int), cudaMemcpyDeviceToHost));
+    THCudaCheck(
+        cudaMemcpy(&baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
     nnzC -= baseC;
   }
 
@@ -256,8 +267,9 @@ int spmv(
 
   int vector_size = THCudaTensor_size(state, vector, 0);
   if(transpose == 1) {
-    THArgCheck(rows == vector_size,
-        3, "rows should match vector size in transpose mode got %d expected %d", rows, vector_size);
+    THArgCheck(rows == vector_size, 3, 
+               "rows should match vector size in transpose"
+               "mode got %d expected %d", rows, vector_size);
     THCudaTensor_resize1d(state, output, cols);
   } else {
     THArgCheck(cols == vector_size,
@@ -339,7 +351,9 @@ int spmv_backward_matrix(
   float* p_vector = THCudaTensor_data(state, vector);
   float* p_grad_output = THCudaTensor_data(state, grad_output);
   float* p_grad_matrix = THCudaTensor_data(state, grad_matrix);
-  spmv_backward_matrix_cuda(p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, rows, cols, nnz);
+  spmv_backward_matrix_cuda(
+      p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix,
+      rows, cols, nnz);
 
   // Free scratch data
   THCudaCheck(THCudaFree(state, p_cooRow));
@@ -361,7 +375,8 @@ int spmm_forward(
     const int rowsB, const int colsB, int transposeB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
 
-  THAssertMsg(colsA == rowsB, "spmm: A and B should have compatible inner dimensions.");
+  THAssertMsg(colsA == rowsB, "spmm: A and B should have"
+              " compatible inner dimensions.");
 
   int nnzA = THCudaTensor_size(state, A_val, 0);
   int nnzB = THCudaTensor_size(state, B_val, 0);
@@ -405,7 +420,8 @@ int spmm_forward(
 
   int nnzC;
   int* nnzTotalDevHostPtr = &nnzC;
-  cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  // nnzTotalDevHostPtr points to host memory
+  // nnzTotalDevHostPtr points to host memory
+  cusparseSetPointerMode(handle, CUSPARSE_POINTER_MODE_HOST);  
   THCusparseCheck(cusparseXcsrgemmNnz(
       handle, transA, transB, rowsA, rowsB, colsA,
       descr, nnzA, p_rowA, p_colA,
@@ -416,8 +432,10 @@ int spmm_forward(
     nnzC = *nnzTotalDevHostPtr;
   } else {
     int baseC;
-    THCudaCheck(cudaMemcpy(&nnzC, p_rowC+rowsA, sizeof(int), cudaMemcpyDeviceToHost));
-    THCudaCheck(cudaMemcpy(&baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
+    THCudaCheck(cudaMemcpy(
+          &nnzC, p_rowC+rowsA, sizeof(int), cudaMemcpyDeviceToHost));
+    THCudaCheck(cudaMemcpy(
+          &baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
     nnzC -= baseC;
   }
 
