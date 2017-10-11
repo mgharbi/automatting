@@ -375,8 +375,23 @@ int spmm_forward(
     const int rowsB, const int colsB, int transposeB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
 
-  THAssertMsg(colsA == rowsB, "spmm: A and B should have"
-              " compatible inner dimensions.");
+  if(transposeA == 0) {
+    if(transposeB == 0) {
+      THAssertMsg(colsA == rowsB, "spmm: A and B should have"
+                  " compatible inner dimensions.");
+    } else {
+      THAssertMsg(colsA == colsB, "spmm: A and B.T should have"
+                  " compatible inner dimensions.");
+    }
+  } else {
+    if(transposeB == 0) {
+      THAssertMsg(rowsA == rowsB, "spmm: A.T and B should have"
+                  " compatible inner dimensions.");
+    } else {
+      THAssertMsg(rowsA == colsB, "spmm: A.T and B.T should have"
+                  " compatible inner dimensions.");
+    }
+  }
 
   int nnzA = THCudaTensor_size(state, A_val, 0);
   int nnzB = THCudaTensor_size(state, B_val, 0);
@@ -411,12 +426,12 @@ int spmm_forward(
   cusparseOperation_t transA = CUSPARSE_OPERATION_NON_TRANSPOSE;
   cusparseOperation_t transB = CUSPARSE_OPERATION_NON_TRANSPOSE;
 
-  /* if(transposeA == 1) { */
-  /*   transA = CUSPARSE_OPERATION_TRANSPOSE; */
-  /* } */
-  /* if(transposeB == 1) { */
-  /*   transB = CUSPARSE_OPERATION_TRANSPOSE; */
-  /* } */
+  if(transposeA == 1) {
+    transA = CUSPARSE_OPERATION_TRANSPOSE;
+  }
+  if(transposeB == 1) {
+    transB = CUSPARSE_OPERATION_TRANSPOSE;
+  }
 
   int nnzC;
   int* nnzTotalDevHostPtr = &nnzC;
@@ -438,6 +453,8 @@ int spmm_forward(
           &baseC, p_rowC, sizeof(int), cudaMemcpyDeviceToHost));
     nnzC -= baseC;
   }
+
+  printf("nnz %d\n", nnzC);
 
   THCudaIntTensor_resize1d(state, C_csr_col, nnzC);
   THCudaTensor_resize1d(state, C_val, nnzC);

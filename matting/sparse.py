@@ -24,6 +24,10 @@ class Sparse(object):
     self.col_idx = Variable(self.col_idx)
     self.val = Variable(self.val, requires_grad=requires_grad)
 
+  @property
+  def nnz(self):
+    return self.val.numel()
+
   def mul_(self, s):
     self.val.mul_(s)
 

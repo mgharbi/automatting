@@ -66,6 +66,7 @@ __global__ void spadd_backward_matrix_kernel(
   }
 }
 
+
 void spadd_backward_matrix_cuda(
       const int* p_csr_rowA, const int* p_csr_colA, float* p_gradA, const int nnzA,
       const int* p_csr_rowB, const int* p_csr_colB, float* p_gradB, const int nnzB,
@@ -82,4 +83,3 @@ void spadd_backward_matrix_cuda(
        alpha, beta, rows, cols);
   THCudaCheck(cudaPeekAtLastError());
 }
-

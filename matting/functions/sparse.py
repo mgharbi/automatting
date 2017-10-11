@@ -107,7 +107,8 @@ class SpMM(Function):
 
   @staticmethod
   def forward(ctx, rowA, colA, valA, sizeA, rowB, colB, valB, sizeB):
-    # ctx.save_for_backward(rowA, colA, rowB, colB, size)
+    ctx.A_size = sizeA
+    ctx.B_size = sizeB
     rowC = torch.IntTensor().cuda()
     colC = torch.IntTensor().cuda()
     valC = torch.FloatTensor().cuda()
@@ -115,4 +116,40 @@ class SpMM(Function):
         rowA, colA, valA, sizeA[0], sizeA[1], False,
         rowB, colB, valB, sizeB[0], sizeB[1], False,
         rowC, colC, valC)
+    ctx.save_for_backward(rowA, colA, valA, rowB, colB, valB, rowC, colC)
     return rowC, colC, valC
+
+  @staticmethod
+  def backward(ctx, grad_rowC, grad_colC, grad_valC):
+    rowA, colA, valA, rowB, colB, valB, rowC, colC = ctx.saved_variables
+    sizeA = ctx.A_size
+    sizeB = ctx.B_size
+    grad_rowA = grad_colA = grad_valA = None
+    grad_rowB = grad_colB = grad_valB = None
+    grad_sizeA = None
+    grad_sizeB = None
+
+    grad_rowA = rowA.data.new()
+    grad_colA = colA.data.new()
+    grad_valA = valA.data.new()
+    grad_rowB = rowB.data.new()
+    grad_colB = colB.data.new()
+    grad_valB = valB.data.new()
+
+    sparse.spmm_forward(
+        rowC.data, colC.data, grad_valC.data, sizeA[0], sizeB[1], False,
+        rowB.data, colB.data, valB.data, sizeB[0], sizeB[1], True,
+        grad_rowA, grad_colA, grad_valA)
+    sparse.spmm_forward(
+        rowA.data, colA.data, valA.data, sizeA[0], sizeA[1], True,
+        rowC.data, colC.data, grad_valC.data, sizeA[0], sizeB[1], False,
+        grad_rowB, grad_colB, grad_valB)
+
+    grad_rowA = None
+    grad_colA = None
+    grad_rowB = None
+    grad_colB = None
+    grad_valA = Variable(grad_valA)
+    grad_valB = Variable(grad_valB)
+
+    return grad_rowA, grad_colA, grad_valA, grad_sizeA, grad_rowB, grad_colB, grad_valB, grad_sizeB
