@@ -44,7 +44,10 @@ int coo2csr(THCudaIntTensor *row_idx,
   THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1, 0, "row_idx should be 1D");
   THArgCheck(THCudaIntTensor_nDimension(state, col_idx) == 1, 1, "col_idx should be 1D");
 
-  // TODO: refcounting
+  // Grab reference
+  row_idx = THCudaIntTensor_newContiguous(state, row_idx);
+  col_idx = THCudaIntTensor_newContiguous(state, col_idx);
+  val = THCudaTensor_newContiguous(state, val);
 
   if( THCudaTensor_nDimension(state, val) != 1) {
     THError("val should be 1D");
@@ -77,6 +80,10 @@ int coo2csr(THCudaIntTensor *row_idx,
 
   THCusparseCheck(cusparseXcoo2csr(
       handle, p_cooRow, nnz, rows, p_csr_row_idx, CUSPARSE_INDEX_BASE_ZERO));
+
+  THCudaIntTensor_free(state, row_idx);
+  THCudaIntTensor_free(state, col_idx);
+  THCudaTensor_free(state, val);
 
   return 0;
 }

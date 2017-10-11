@@ -2,7 +2,7 @@ import numpy as np
 import torch as th
 from torch.autograd import Variable
 from torch.autograd import gradcheck
-# from torch.autograd import profiler
+from torch.autograd import profiler
 
 import matting.sparse as sp
 import matting.functions.sparse as spfuncs
@@ -221,11 +221,33 @@ def test_multiply_different_sparsity():
   assert (col_idx == np.array([1, 3, 1, 2, 3], dtype=np.int32)).all()
   assert (C.val.data.cpu().numpy() == np.array([1, 1, 1, 1, 1])).all()
 
+
+# def test_scalar_mul():
+#   A = _get_random_sparse_matrix(3, 3, 2)
+#   s = np.random.uniform()
+#   A.mul_(s)
+
+
+def test_performance():
+  nnz = 10000
+  nrows = 100000
+  ncols = 100000
+  A = _get_random_sparse_matrix(nrows, ncols, nnz)
+  A.make_variable()
+
+  v = Variable(th.ones(ncols).cuda(), requires_grad=True)
+  
+  with profiler.profile() as prof:
+    out = sp.spmv(A, v)
+    loss = out.sum()
+    loss.backward()
+  print (prof)
+
+
 # TODO(mgharbi):
-# - mv gradient w.r.t to matrix
 # - m-m gradient w.r.t to both matrices
-# - m-m add with scalar and gradients
+# - m-m add: gradient w.r.t. scalar and gradients
+# - scalar multiply
 # - proper handling of transpose and sizes
 # - argument checks
 # THCAssertSameGPU
-

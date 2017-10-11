@@ -24,6 +24,9 @@ class Sparse(object):
     self.col_idx = Variable(self.col_idx)
     self.val = Variable(self.val, requires_grad=requires_grad)
 
+  def mul_(self, s):
+    self.val.mul_(s)
+
   def __str__(self):
     s = "Sparse matrix {}\n".format(self.size)
     s += "  csr_row {}\n".format(self.csr_row_idx)
@@ -62,4 +65,5 @@ def sp_gram(s_mat):
 
 def sp_laplacian(s_mat):
   """diag(row_sum(A)) - A for A sparse"""
+  # row_sum = spmv(A, )
   raise NotImplemented
