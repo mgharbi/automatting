@@ -3,22 +3,7 @@ import matting.functions.sparse as spfuncs
 
 from torch.autograd import Variable
 
-
-def from_coo(row_idx, col_idx, val, size):
-  """Construct a sparse matrix from THTensors describing a COO format."""
-  if row_idx.numel() != col_idx.numel():
-    raise ValueError("Row and Col should have the same number of elements.")
-  if row_idx.numel() != val.numel():
-    raise ValueError("Row and Val should have the same number of elements.")
-  if row_idx.numel() > size[0]*size[1]:
-    raise ValueError("NNZ should be less than rows*cols.")
-  csr_row_idx, col_idx, val = spfuncs.coo2csr(row_idx, col_idx, val, size)
-  return Sparse(csr_row_idx, col_idx, val, size)
-
-
-def transpose(A):
-  csc_row_idx, csc_col_idx, csc_val = spfuncs.csr2csc(A.csr_row_idx, A.col_idx, A.val, A.size)
-  return Sparse(csc_col_idx, csc_row_idx, csc_val, th.Size((A.size[1], A.size[0])))
+import scipy.sparse as scp
 
 
 class Sparse(object):
@@ -48,12 +33,37 @@ class Sparse(object):
   def mul_(self, s):
     self.val.mul_(s)
 
+  def to_dense(self):
+    vals = self.val.data.cpu()
+    ptr = self.csr_row_idx.data.cpu()
+    cols = self.col_idx.data.cpu()
+    size = self.size
+    mat = scp.csr_matrix((vals, cols, ptr), shape=(size[0], size[1]))
+    return mat.todense()
+
   def __str__(self):
     s = "Sparse matrix {}\n".format(self.size)
     s += "  csr_row {}\n".format(self.csr_row_idx)
     s += "  col {}\n".format(self.col_idx)
     s += "  val {}\n".format(self.val)
     return s
+
+
+def from_coo(row_idx, col_idx, val, size):
+  """Construct a sparse matrix from THTensors describing a COO format."""
+  if row_idx.numel() != col_idx.numel():
+    raise ValueError("Row and Col should have the same number of elements.")
+  if row_idx.numel() != val.numel():
+    raise ValueError("Row and Val should have the same number of elements.")
+  if row_idx.numel() > size[0]*size[1]:
+    raise ValueError("NNZ should be less than rows*cols.")
+  csr_row_idx, col_idx, val = spfuncs.coo2csr(row_idx, col_idx, val, size)
+  return Sparse(csr_row_idx, col_idx, val, size)
+
+
+def transpose(A):
+  csc_row_idx, csc_col_idx, csc_val = spfuncs.csr2csc(A.csr_row_idx, A.col_idx, A.val, A.size)
+  return Sparse(csc_col_idx, csc_row_idx, csc_val, th.Size((A.size[1], A.size[0])))
 
 
 def spadd(A, B):

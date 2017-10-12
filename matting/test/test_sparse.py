@@ -7,16 +7,6 @@ from torch.autograd import profiler
 import matting.sparse as sp
 import matting.functions.sparse as spfuncs
 
-import scipy.sparse as scp
-
-def to_dense(A):
-  vals = A.val.data.cpu()
-  ptr = A.csr_row_idx.data.cpu()
-  cols = A.col_idx.data.cpu()
-  size = A.size
-  mat = scp.csr_matrix((vals, cols, ptr), shape=(size[0], size[1]))
-  return mat.todense()
-
 
 def _get_random_sparse_matrix(nrows, ncols, nnz):
   row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
@@ -46,10 +36,9 @@ def test_transpose():
 
     A.make_variable()
 
-    Ad = to_dense(A)
-
+    Ad = A.to_dense()
     At = sp.transpose(A)
-    Atd = to_dense(At)
+    Atd = At.to_dense()
 
     diff = np.amax(np.abs(Ad.T-Atd))
 
