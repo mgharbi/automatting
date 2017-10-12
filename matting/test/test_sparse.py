@@ -36,6 +36,26 @@ def _get_random_sparse_matrix(nrows, ncols, nnz):
   return A
 
 
+def test_transpose():
+  np.random.seed(0)
+  for i in range(10):
+    nrows = np.random.randint(3,8)
+    ncols = np.random.randint(3,8)
+    nnz = np.random.randint(1,nrows*ncols/2)
+    A = _get_random_sparse_matrix(nrows, ncols, nnz)
+
+    A.make_variable()
+
+    Ad = to_dense(A)
+
+    At = sp.transpose(A)
+    Atd = to_dense(At)
+
+    diff = np.amax(np.abs(Ad.T-Atd))
+
+    assert diff < 1e-5
+
+
 def test_spadd_gradients():
   np.random.seed(0)
 

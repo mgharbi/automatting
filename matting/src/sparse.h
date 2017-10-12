@@ -19,6 +19,14 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *csr_row_idx,
             const int rows, const int cols);
 
+int csr2csc(THCudaIntTensor *row_idx, 
+            THCudaIntTensor *col_idx,
+            THCudaTensor *val,
+            THCudaIntTensor *csc_row_idx, 
+            THCudaIntTensor *csc_col_idx,
+            THCudaTensor *csc_val,
+            const int rows, const int cols);
+
 int spadd_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,

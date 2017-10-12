@@ -16,6 +16,11 @@ def from_coo(row_idx, col_idx, val, size):
   return Sparse(csr_row_idx, col_idx, val, size)
 
 
+def transpose(A):
+  csc_row_idx, csc_col_idx, csc_val = spfuncs.csr2csc(A.csr_row_idx, A.col_idx, A.val, A.size)
+  return Sparse(csc_col_idx, csc_row_idx, csc_val, th.Size((A.size[1], A.size[0])))
+
+
 class Sparse(object):
   """"""
   def __init__(self, csr_row_idx, col_idx, val, size):

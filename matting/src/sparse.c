@@ -96,6 +96,45 @@ int coo2csr(THCudaIntTensor *row_idx,
   return 0;
 }
 
+int csr2csc(THCudaIntTensor *row_idx, 
+            THCudaIntTensor *col_idx,
+            THCudaTensor *val,
+            THCudaIntTensor *csc_row_idx, 
+            THCudaIntTensor *csc_col_idx,
+            THCudaTensor *csc_val,
+            const int rows, const int cols) {
+
+  int nnz = THCudaIntTensor_size(state, col_idx, 0);
+
+  row_idx = THCudaIntTensor_newContiguous(state, row_idx);
+  col_idx = THCudaIntTensor_newContiguous(state, col_idx);
+  val = THCudaTensor_newContiguous(state, val);
+  int* p_row = THCudaIntTensor_data(state, row_idx);
+  int* p_col = THCudaIntTensor_data(state, col_idx);
+  float* p_val = THCudaTensor_data(state, val);
+
+  THCudaIntTensor_resize1d(state, csc_row_idx, nnz);
+  THCudaIntTensor_resize1d(state, csc_col_idx, cols+1);
+  THCudaTensor_resize1d(state, csc_val, nnz);
+  int* p_csc_row = THCudaIntTensor_data(state, csc_row_idx);
+  int* p_csc_col = THCudaIntTensor_data(state, csc_col_idx);
+  float* p_csc_val = THCudaTensor_data(state, csc_val);
+
+  cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
+  THCusparseCheck(cusparseScsr2csc(
+      handle, rows, cols, nnz,
+      p_val, p_row, p_col, 
+      p_csc_val, p_csc_row, p_csc_col, 
+      CUSPARSE_ACTION_NUMERIC,
+      CUSPARSE_INDEX_BASE_ZERO));
+
+  THCudaIntTensor_free(state, row_idx);
+  THCudaIntTensor_free(state, col_idx);
+  THCudaTensor_free(state, val);
+
+  return 0;
+}
+
 
 int spadd_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,

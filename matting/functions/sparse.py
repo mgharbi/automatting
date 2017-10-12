@@ -4,10 +4,19 @@ from torch.autograd import Variable
 from .._ext import sparse
 
 def coo2csr(row_idx, col_idx, val, size):
-  csr_row_idx = torch.IntTensor().cuda()
+  csr_row_idx = row_idx.new() 
   sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, size[0], size[1])
   return (csr_row_idx, col_idx, val)
 
+def csr2csc(row_idx, col_idx, val, size):
+  csc_row_idx = row_idx.data.new()
+  csc_col_idx = row_idx.data.new()
+  csc_val = val.data.new()
+  sparse.csr2csc(row_idx.data, col_idx.data, val.data, csc_row_idx, csc_col_idx, csc_val, size[0], size[1])
+  csc_row_idx = Variable(csc_row_idx)
+  csc_col_idx = Variable(csc_col_idx)
+  csc_val = Variable(csc_val)
+  return (csc_row_idx, csc_col_idx, csc_val)
 
 class SpAdd(Function):
   """Sum of sparse matrices."""
