@@ -7,6 +7,17 @@ from torch.autograd import profiler
 import matting.sparse as sp
 import matting.functions.sparse as spfuncs
 
+import scipy.sparse as scp
+
+def to_dense(A):
+  vals = A.val.data.cpu()
+  ptr = A.csr_row_idx.data.cpu()
+  cols = A.col_idx.data.cpu()
+  size = A.size
+  mat = scp.csr_matrix((vals, cols, ptr), shape=(size[0], size[1]))
+  return mat.todense()
+
+
 def _get_random_sparse_matrix(nrows, ncols, nnz):
   row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
   col = np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)
@@ -69,7 +80,9 @@ def test_spmv_gradients():
 def test_spmm_gradients():
   np.random.seed(0)
 
-  for i in range(10):
+
+  i = 0
+  while i < 10:
     nrows = np.random.randint(3,8)
     ncols = np.random.randint(3,8)
     ncols2 = np.random.randint(3,8)
@@ -81,23 +94,22 @@ def test_spmm_gradients():
     A.make_variable()
     B.make_variable()
 
-    import ipdb; 
-    with ipdb.launch_ipdb_on_exception():
-      C = sp.spmm(A, B)
-      if C.nnz == 0:
-        continue
-      loss = C.val.sum()
-      print loss.size(), C.val.size(), C.nnz, A.nnz, B.nnz
-      # print loss
-      # print C
-      loss.backward()
-      # print C.val.grad
+    C = sp.spmm(A, B)
+    if C.nnz == 0: # TODO: handle this special case for backprop
+      continue
+    i += 1
 
-    # gradcheck(spfuncs.SpMM.apply,
-    #     (A.csr_row_idx, A.col_idx, A.val, A.size,
-    #      B.csr_row_idx, B.col_idx, B.val, B.size),
-    #      eps=1e-4, atol=1e-5, rtol=1e-3,
-    #      raise_exception=True)
+    loss = C.val.sum()
+    loss.backward()
+
+    Agrad = sp.Sparse(A.csr_row_idx, A.col_idx, A.val.grad, A.size)
+    Bgrad = sp.Sparse(B.csr_row_idx, B.col_idx, B.val.grad, B.size)
+
+    gradcheck(spfuncs.SpMM.apply,
+        (A.csr_row_idx, A.col_idx, A.val, A.size,
+         B.csr_row_idx, B.col_idx, B.val, B.size),
+         eps=1e-4, atol=2e-4, rtol=1e-3,
+         raise_exception=True)
 
 
 def test_coo2csr():

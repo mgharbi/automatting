@@ -17,10 +17,10 @@ void spadd_backward_cuda(
       const float alpha, const float beta, const int rows, const int cols);
 
 void matmul_preserve_sparsity_cuda(
-      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1, const int nnz1,
-      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2, const int nnz2,
-      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out, const int nnz_out,
-      const int out_rows, const int out_cols);
+      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1,
+      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2,
+      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out,
+      const int nnz_out);
 
 #ifdef __cplusplus
 }

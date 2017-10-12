@@ -86,11 +86,11 @@ void spadd_backward_cuda(
 
 
 __global__ void matmul_preserve_sparsity_kernel(
-      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1, const int nnz1,
+      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1,
 
-      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2, const int nnz2,
-      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out, const int nnz_out,
-      const int out_rows, const int out_cols) {
+      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2,
+      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out, const int nnz_out)
+{
   const int64_t idx = blockIdx.x*blockDim.x + threadIdx.x;
   if (idx < nnz_out) {
     int row = p_coo_row_out[idx];
@@ -117,8 +117,10 @@ __global__ void matmul_preserve_sparsity_kernel(
         ++ptr2;
       }
     }
+    // printf("%d %d %.4f %d(%d) %d(%d) \n", row, col, sum, ptr1, end1, ptr2, end2);
 
     p_out[idx] = sum;
+
   }
 }
 
@@ -127,18 +129,17 @@ __global__ void matmul_preserve_sparsity_kernel(
  * in1.in2(T) 
  */
 void matmul_preserve_sparsity_cuda(
-      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1, const int nnz1,
-      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2, const int nnz2,
-      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out, const int nnz_out,
-      const int out_rows, const int out_cols) {
+      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1,
+      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2,
+      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out,
+      const int nnz_out) {
 
   const int64_t block_sz = 512;
   const int64_t nblocks = (nnz_out + block_sz - 1) / block_sz;
 
   matmul_preserve_sparsity_kernel<<<nblocks, block_sz, 0, THCState_getCurrentStream(state)>>>(
-       p_csr_row1, p_csr_col1, p_data1, nnz1,
-       p_csr_row2, p_csr_col2, p_data2, nnz2,
-       p_coo_row_out, p_coo_col_out, p_out, nnz_out,
-       out_rows, out_cols);
+       p_csr_row1, p_csr_col1, p_data1,
+       p_csr_row2, p_csr_col2, p_data2,
+       p_coo_row_out, p_coo_col_out, p_out, nnz_out);
   THCudaCheck(cudaPeekAtLastError());
 }

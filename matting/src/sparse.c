@@ -503,16 +503,14 @@ int spmm_backward(
 
   THCudaTensor_resize1d(state, A_grad_val, nnzA);
   THCudaTensor_resize1d(state, B_grad_val, nnzB);
+  THCudaTensor_zero(state, A_grad_val);
+  THCudaTensor_zero(state, B_grad_val);
 
   int *p_rowA = THCudaIntTensor_data(state, A_csr_row);
   int *p_colA = THCudaIntTensor_data(state, A_csr_col);
-  float *p_valA = THCudaTensor_data(state, A_val);
-  float *p_grad_valA = THCudaTensor_data(state, A_grad_val);
 
   int *p_rowB = THCudaIntTensor_data(state, B_csr_row);
   int *p_colB = THCudaIntTensor_data(state, B_csr_col);
-  float *p_valB = THCudaTensor_data(state, B_val);
-  float *p_grad_valB = THCudaTensor_data(state, B_grad_val);
 
   int *p_rowC = THCudaIntTensor_data(state, C_csr_row);
   int *p_colC = THCudaIntTensor_data(state, C_csr_col);
@@ -520,25 +518,25 @@ int spmm_backward(
   
   // Setup cusparse
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
-  cusparseMatDescr_t descr=0;
-  THCusparseCheck(cusparseCreateMatDescr(&descr));
-  THCusparseCheck(cusparseSetMatType(descr, CUSPARSE_MATRIX_TYPE_GENERAL));
-  THCusparseCheck(cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO));
 
   { // dL/dA = dL/dC.Bt
+    float *p_grad_valA = THCudaTensor_data(state, A_grad_val);
+    float *p_valB = THCudaTensor_data(state, B_val);
     int* p_coo_rowA;
     THCudaCheck(THCudaMalloc(state, (void**) &p_coo_rowA, nnzA*sizeof(int)));
     THCusparseCheck(cusparseXcsr2coo(
         handle, p_rowA, nnzA, rowsA, p_coo_rowA, CUSPARSE_INDEX_BASE_ZERO));
     matmul_preserve_sparsity_cuda(
-        p_rowC, p_colC, p_grad_valC, nnzC,
-        p_rowB, p_colB, p_valB, nnzB,
-        p_coo_rowA, p_colA, p_grad_valA, nnzA,
-        rowsA, colsA);
+        p_rowC, p_colC, p_grad_valC,
+        p_rowB, p_colB, p_valB,
+        p_coo_rowA, p_colA, p_grad_valA, nnzA);
     THCudaCheck(THCudaFree(state, p_coo_rowA));
   }
    
   { // dL/dB = At.dL/dC
+    float *p_grad_valB = THCudaTensor_data(state, B_grad_val);
+    float *p_valA = THCudaTensor_data(state, A_val);
+
     int* p_coo_rowB;
     THCudaCheck(THCudaMalloc(state, (void**) &p_coo_rowB, nnzB*sizeof(int)));
     THCusparseCheck(cusparseXcsr2coo(
@@ -557,10 +555,10 @@ int spmm_backward(
         p_csc_valA, p_csc_rowA, p_csc_colA, 
         CUSPARSE_ACTION_NUMERIC,
         CUSPARSE_INDEX_BASE_ZERO));
-    
+
     // transpose dL/dC
     int colsC = colsB;
-    int rowsC = colsA;
+    int rowsC = rowsA;
     int* p_csc_rowC;
     THCudaCheck(THCudaMalloc(state, (void**) &p_csc_rowC, nnzC*sizeof(int)));
     int* p_csc_colC;
@@ -575,10 +573,9 @@ int spmm_backward(
         CUSPARSE_INDEX_BASE_ZERO));
 
     matmul_preserve_sparsity_cuda(
-        p_csc_colA, p_csc_rowA, p_csc_valA, nnzA,
-        p_csc_rowC, p_csc_colC, p_csc_grad_valC, nnzC,
-        p_coo_rowB, p_colB, p_grad_valB, nnzB,
-        rowsB, colsB);
+        p_csc_colA, p_csc_rowA, p_csc_valA,
+        p_csc_colC, p_csc_rowC, p_csc_grad_valC,
+        p_coo_rowB, p_colB, p_grad_valB, nnzB);
 
     THCudaCheck(THCudaFree(state, p_coo_rowB));
     THCudaCheck(THCudaFree(state, p_csc_colA));

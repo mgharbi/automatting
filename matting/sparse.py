@@ -71,7 +71,6 @@ def spmm(A, B):
       A.csr_row_idx, A.col_idx, A.val, A.size,
       B.csr_row_idx, B.col_idx, B.val, B.size)
   sizeC = th.Size((A.size[0], B.size[1]))
-  print "Making C", rowC.numel(), colC.numel(), valC.numel(), sizeC
   return Sparse(rowC, colC, valC, sizeC)
 
 
