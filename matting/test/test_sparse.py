@@ -295,10 +295,10 @@ def test_cg():
   A = sp.from_coo(row, col, val, th.Size((nnz, nnz)))
   A.make_variable()
   
-  optimizer = th.optim.Adam([A.val], lr=5e-1)
+  optimizer = th.optim.Adam([A.val], lr=1e-1)
   avg_loss = 0  # Running average of the loss for display
-  for step in range(1000):
-    b = Variable(th.randn(nnz).type(th.FloatTensor).cuda(), requires_grad=False)
+  for step in range(2000):
+    b = Variable(th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda(), requires_grad=False)
     x0 = Variable(th.zeros(nnz).cuda(), requires_grad=False)
 
     x_opt, err = optim.sparse_cg(A,b, x0, steps=10)
