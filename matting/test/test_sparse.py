@@ -66,25 +66,38 @@ def test_spmv_gradients():
          raise_exception=True)
 
 
-# def test_spmm_gradients():
-#   np.random.seed(0)
-#
-#   for i in range(10):
-#     nrows = np.random.randint(3,8)
-#     ncols = np.random.randint(3,8)
-#     ncols2 = np.random.randint(3,8)
-#     nnz = np.random.randint(1,nrows*ncols/2)
-#     A = _get_random_sparse_matrix(nrows, ncols, nnz)
-#     B = _get_random_sparse_matrix(ncols, ncols2, nnz)
-#
-#     A.make_variable()
-#     B.make_variable()
-#
-#     gradcheck(spfuncs.SpMM.apply,
-#         (A.csr_row_idx, A.col_idx, A.val, A.size,
-#          B.csr_row_idx, B.col_idx, B.val, B.size),
-#          eps=1e-4, atol=1e-5, rtol=1e-3,
-#          raise_exception=True)
+def test_spmm_gradients():
+  np.random.seed(0)
+
+  for i in range(10):
+    nrows = np.random.randint(3,8)
+    ncols = np.random.randint(3,8)
+    ncols2 = np.random.randint(3,8)
+    nnz = np.random.randint(1,nrows*ncols/2)
+    nnz2 = np.random.randint(1,ncols*ncols2/2)
+    A = _get_random_sparse_matrix(nrows, ncols, nnz)
+    B = _get_random_sparse_matrix(ncols, ncols2, nnz2)
+
+    A.make_variable()
+    B.make_variable()
+
+    import ipdb; 
+    with ipdb.launch_ipdb_on_exception():
+      C = sp.spmm(A, B)
+      if C.nnz == 0:
+        continue
+      loss = C.val.sum()
+      print loss.size(), C.val.size(), C.nnz, A.nnz, B.nnz
+      # print loss
+      # print C
+      loss.backward()
+      # print C.val.grad
+
+    # gradcheck(spfuncs.SpMM.apply,
+    #     (A.csr_row_idx, A.col_idx, A.val, A.size,
+    #      B.csr_row_idx, B.col_idx, B.val, B.size),
+    #      eps=1e-4, atol=1e-5, rtol=1e-3,
+    #      raise_exception=True)
 
 
 def test_coo2csr():
@@ -276,4 +289,5 @@ def test_performance():
 # - proper handling of transpose and sizes
 # - argument checks
 # - tranpose op
+# - Special case of spmm when C.nnz == 0
 # THCAssertSameGPU

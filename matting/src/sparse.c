@@ -459,7 +459,7 @@ int spmm_forward(
   float *p_valC = THCudaTensor_data(state, C_val);
 
   THCusparseCheck(cusparseScsrgemm(
-      handle, transA, transB, rowsA, rowsB, colsA,
+      handle, transA, transB, rowsA, colsB, colsA,
       descr, nnzA, p_valA, p_rowA, p_colA,
       descr, nnzB, p_valB, p_rowB, p_colB,
       descr, p_valC, p_rowC, p_colC));

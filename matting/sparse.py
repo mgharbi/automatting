@@ -6,6 +6,12 @@ from torch.autograd import Variable
 
 def from_coo(row_idx, col_idx, val, size):
   """Construct a sparse matrix from THTensors describing a COO format."""
+  if row_idx.numel() != col_idx.numel():
+    raise ValueError("Row and Col should have the same number of elements.")
+  if row_idx.numel() != val.numel():
+    raise ValueError("Row and Val should have the same number of elements.")
+  if row_idx.numel() > size[0]*size[1]:
+    raise ValueError("NNZ should be less than rows*cols.")
   csr_row_idx, col_idx, val = spfuncs.coo2csr(row_idx, col_idx, val, size)
   return Sparse(csr_row_idx, col_idx, val, size)
 
@@ -13,6 +19,12 @@ def from_coo(row_idx, col_idx, val, size):
 class Sparse(object):
   """"""
   def __init__(self, csr_row_idx, col_idx, val, size):
+    if csr_row_idx.numel() != size[0]+1:
+      raise ValueError("CSR row should have rows+1 elements")
+    if col_idx.numel() != val.numel():
+      raise ValueError("Col and Val should have the same number of elements.")
+    if col_idx.numel() > size[0]*size[1]:
+      raise ValueError("NNZ should be less than rows*cols.")
     self.csr_row_idx = csr_row_idx
     self.col_idx = col_idx
     self.val = val
@@ -59,6 +71,7 @@ def spmm(A, B):
       A.csr_row_idx, A.col_idx, A.val, A.size,
       B.csr_row_idx, B.col_idx, B.val, B.size)
   sizeC = th.Size((A.size[0], B.size[1]))
+  print "Making C", rowC.numel(), colC.numel(), valC.numel(), sizeC
   return Sparse(rowC, colC, valC, sizeC)
 
 
