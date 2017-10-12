@@ -122,8 +122,8 @@ class SpMM(Function):
     colC = torch.IntTensor().cuda()
     valC = torch.FloatTensor().cuda()
     sparse.spmm_forward(
-        rowA, colA, valA, sizeA[0], sizeA[1], False,
-        rowB, colB, valB, sizeB[0], sizeB[1], False,
+        rowA, colA, valA, sizeA[0], sizeA[1],
+        rowB, colB, valB, sizeB[0], sizeB[1],
         rowC, colC, valC)
     ctx.save_for_backward(rowA, colA, valA, rowB, colB, valB, rowC, colC)
     return rowC, colC, valC

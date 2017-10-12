@@ -408,29 +408,13 @@ int spmv_backward_matrix(
 
 int spmm_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
-    const int rowsA, const int colsA, int transposeA,
+    const int rowsA, const int colsA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
-    const int rowsB, const int colsB, int transposeB,
+    const int rowsB, const int colsB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
 
-  if(transposeA == 0) {
-    if(transposeB == 0) {
-      THAssertMsg(colsA == rowsB, "spmm: A and B should have"
-                  " compatible inner dimensions.");
-    } else {
-      THAssertMsg(colsA == colsB, "spmm: A and B.T should have"
-                  " compatible inner dimensions.");
-    }
-  } else {
-    if(transposeB == 0) {
-      THAssertMsg(rowsA == rowsB, "spmm: A.T and B should have"
-                  " compatible inner dimensions.");
-    } else {
-      THAssertMsg(rowsA == colsB, "spmm: A.T and B.T should have"
-                  " compatible inner dimensions.");
-    }
-  }
-
+  THAssertMsg(colsA == rowsB, "spmm: A and B should have"
+              " compatible inner dimensions.");
   int nnzA = THCudaTensor_size(state, A_val, 0);
   int nnzB = THCudaTensor_size(state, B_val, 0);
 
@@ -463,13 +447,6 @@ int spmm_forward(
 
   cusparseOperation_t transA = CUSPARSE_OPERATION_NON_TRANSPOSE;
   cusparseOperation_t transB = CUSPARSE_OPERATION_NON_TRANSPOSE;
-
-  if(transposeA == 1) {
-    transA = CUSPARSE_OPERATION_TRANSPOSE;
-  }
-  if(transposeB == 1) {
-    transB = CUSPARSE_OPERATION_TRANSPOSE;
-  }
 
   int nnzC;
   int* nnzTotalDevHostPtr = &nnzC;

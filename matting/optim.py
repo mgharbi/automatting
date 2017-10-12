@@ -2,7 +2,7 @@ import logging
 
 import torch as th
 
-from matting.functions.sparse import spmv
+import matting.sparse as sp
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -33,14 +33,14 @@ def cg(A, b, x0, steps=1, thresh=1e-5, verbose=False):
 
 
 def sparse_cg(A, b, x0, steps=1, thresh=1e-5, verbose=False):
-  r = b - spmv(A, x0)
+  r = b - sp.spmv(A, x0)
   p = r.clone()
   x = x0.clone()
   res_old = r.dot(r)
   err = -1
 
   for k in range(steps):
-    Ap = spmv(A, p)
+    Ap = sp.spmv(A, p)
     alpha = res_old / p.dot(Ap)
     x = x +  alpha*p
     r = r - alpha*Ap

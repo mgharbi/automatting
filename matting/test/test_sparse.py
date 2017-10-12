@@ -5,6 +5,7 @@ from torch.autograd import gradcheck
 from torch.autograd import profiler
 
 import matting.sparse as sp
+import matting.optim as optim
 import matting.functions.sparse as spfuncs
 
 
@@ -282,6 +283,43 @@ def test_multiply_different_sparsity():
   assert (A.val.grad.numel() == A.nnz)
   assert (B.val.grad.numel() == B.nnz)
 
+def test_cg():
+  nnz = 10
+  np.random.seed(0)
+  row = np.arange(nnz, dtype=np.int32)
+  col = np.arange(nnz, dtype=np.int32)
+
+  row = th.from_numpy(row).cuda()
+  col = th.from_numpy(col).cuda()
+  val = th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda()
+  A = sp.from_coo(row, col, val, th.Size((nnz, nnz)))
+  A.make_variable()
+  
+  optimizer = th.optim.Adam([A.val], lr=5e-1)
+  avg_loss = 0  # Running average of the loss for display
+  for step in range(1000):
+    b = Variable(th.randn(nnz).type(th.FloatTensor).cuda(), requires_grad=False)
+    x0 = Variable(th.zeros(nnz).cuda(), requires_grad=False)
+
+    x_opt, err = optim.sparse_cg(A,b, x0, steps=10)
+
+    target = 0.5*b  # we want to learn 2*Identity matrix
+    loss = (target-x_opt).pow(2).sum()
+    avg_loss = 0.9*avg_loss + 0.1*loss
+
+    if step % 100 == 0:
+      msg = "Step {:5d} loss = {:8.5f} cg residual = {:4.2g}".format(step, avg_loss.data[0], err)
+      print msg
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+  Ad = A.to_dense()
+  diff = np.amax(np.abs(Ad-2*np.identity(nnz)))
+  
+  assert diff < 1e-3
+
 
 def test_performance():
   nnz = 10000
@@ -306,8 +344,6 @@ def test_performance():
 
 # TODO(mgharbi):
 # - m-m add: gradient w.r.t. scalar and gradients
-# - scalar multiply
-# - proper handling of transpose and sizes
 # - argument checks
 # - tranpose op
 # - Special case of spmm when C.nnz == 0
