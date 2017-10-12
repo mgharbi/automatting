@@ -129,26 +129,14 @@ class SpMM(Function):
     grad_sizeA = None
     grad_sizeB = None
 
-    grad_rowA = rowA.data.new()
-    grad_colA = colA.data.new()
     grad_valA = valA.data.new()
-    grad_rowB = rowB.data.new()
-    grad_colB = colB.data.new()
     grad_valB = valB.data.new()
 
-    sparse.spmm_forward(
-        rowC.data, colC.data, grad_valC.data, sizeA[0], sizeB[1], False,
-        rowB.data, colB.data, valB.data, sizeB[0], sizeB[1], True,
-        grad_rowA, grad_colA, grad_valA)
-    sparse.spmm_forward(
-        rowA.data, colA.data, valA.data, sizeA[0], sizeA[1], True,
-        rowC.data, colC.data, grad_valC.data, sizeA[0], sizeB[1], False,
-        grad_rowB, grad_colB, grad_valB)
+    sparse.spmm_backward(
+        rowA.data, colA.data, valA.data, grad_valA, sizeA[0], sizeA[1],
+        rowB.data, colB.data, valB.data, grad_valB, sizeB[0], sizeB[1],
+        rowC.data, colC.data, grad_valC.data)
 
-    grad_rowA = None
-    grad_colA = None
-    grad_rowB = None
-    grad_colB = None
     grad_valA = Variable(grad_valA)
     grad_valB = Variable(grad_valB)
 

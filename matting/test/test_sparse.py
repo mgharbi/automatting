@@ -66,25 +66,25 @@ def test_spmv_gradients():
          raise_exception=True)
 
 
-def test_spmm_gradients():
-  np.random.seed(0)
-
-  for i in range(10):
-    nrows = np.random.randint(3,8)
-    ncols = np.random.randint(3,8)
-    ncols2 = np.random.randint(3,8)
-    nnz = np.random.randint(1,nrows*ncols/2)
-    A = _get_random_sparse_matrix(nrows, ncols, nnz)
-    B = _get_random_sparse_matrix(ncols, ncols2, nnz)
-
-    A.make_variable()
-    B.make_variable()
-
-    gradcheck(spfuncs.SpMM.apply,
-        (A.csr_row_idx, A.col_idx, A.val, A.size,
-         B.csr_row_idx, B.col_idx, B.val, B.size),
-         eps=1e-4, atol=1e-5, rtol=1e-3,
-         raise_exception=True)
+# def test_spmm_gradients():
+#   np.random.seed(0)
+#
+#   for i in range(10):
+#     nrows = np.random.randint(3,8)
+#     ncols = np.random.randint(3,8)
+#     ncols2 = np.random.randint(3,8)
+#     nnz = np.random.randint(1,nrows*ncols/2)
+#     A = _get_random_sparse_matrix(nrows, ncols, nnz)
+#     B = _get_random_sparse_matrix(ncols, ncols2, nnz)
+#
+#     A.make_variable()
+#     B.make_variable()
+#
+#     gradcheck(spfuncs.SpMM.apply,
+#         (A.csr_row_idx, A.col_idx, A.val, A.size,
+#          B.csr_row_idx, B.col_idx, B.val, B.size),
+#          eps=1e-4, atol=1e-5, rtol=1e-3,
+#          raise_exception=True)
 
 
 def test_coo2csr():
@@ -211,7 +211,6 @@ def test_multiply_same_sparsity():
   assert np.amax(np.abs(A.val.grad.data.cpu().numpy() - np.array([3, 6, 1, 8]))) < 1e-5
 
 
-
 def test_multiply_different_sparsity():
   n = 4
   row = th.from_numpy(np.array(
@@ -249,29 +248,29 @@ def test_multiply_different_sparsity():
   assert (A.val.grad.numel() == A.nnz)
   assert (B.val.grad.numel() == B.nnz)
 
-  print A.val.grad
-  print B.val.grad
-
-
 
 def test_performance():
   nnz = 10000
   nrows = 100000
   ncols = 100000
   A = _get_random_sparse_matrix(nrows, ncols, nnz)
+  B = _get_random_sparse_matrix(nrows, ncols, nnz)
   A.make_variable()
+  B.make_variable()
 
   v = Variable(th.ones(ncols).cuda(), requires_grad=True)
   
   with profiler.profile() as prof:
     out = sp.spmv(A, v)
-    loss = out.sum()
+    out2 = sp.spmm(A, B)
+    out3 = sp.spadd(A, B)
+
+    loss = out.sum() + out2.val.sum() + out3.val.sum()
     loss.backward()
   print (prof)
 
 
 # TODO(mgharbi):
-# - m-m gradient w.r.t to both matrices
 # - m-m add: gradient w.r.t. scalar and gradients
 # - scalar multiply
 # - proper handling of transpose and sizes
