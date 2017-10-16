@@ -7,7 +7,7 @@ extern THCState *state;
 
 
 void sortCOOMatrix(
-    const int rows, const int cols, const int nnz,
+    const long rows, const long cols, const long nnz,
     int* p_cooRow, int* p_cooCol, float* p_cooVal) {
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   cusparseStatus_t status; 
@@ -45,7 +45,7 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *col_idx,
             THCudaTensor *val,
             THCudaIntTensor *csr_row_idx,
-            const int rows, const int cols) {
+            const long rows, const long cols) {
 
   THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1,
                                         0, "row_idx should be 1D");
@@ -61,7 +61,7 @@ int coo2csr(THCudaIntTensor *row_idx,
     THError("val should be 1D");
     return 1;
   }
-  int nnz = THCudaTensor_size(state, val, 0);
+  long nnz = THCudaTensor_size(state, val, 0);
   if( THCudaIntTensor_size(state, col_idx, 0) != nnz) {
     THError("row_idx and col_idx should have matching nnz.");
     return 1;
@@ -102,7 +102,7 @@ int csr2csc(THCudaIntTensor *row_idx,
             THCudaIntTensor *csc_row_idx, 
             THCudaIntTensor *csc_col_idx,
             THCudaTensor *csc_val,
-            const int rows, const int cols) {
+            const long rows, const long cols) {
 
   int nnz = THCudaIntTensor_size(state, col_idx, 0);
 
@@ -140,10 +140,10 @@ int spadd_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val,
-    const float alpha, const float beta, const int rows, const int cols) {
+    const float alpha, const float beta, const long rows, const long cols) {
 
-  int nnzA = THCudaTensor_size(state, A_val, 0);
-  int nnzB = THCudaTensor_size(state, B_val, 0);
+  long nnzA = THCudaTensor_size(state, A_val, 0);
+  long nnzB = THCudaTensor_size(state, B_val, 0);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   
@@ -217,7 +217,7 @@ int spadd_backward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *gradA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *gradB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *gradC,
-    const float alpha, const float beta, const int rows, const int cols) {
+    const float alpha, const float beta, const long rows, const long cols) {
 
   THCAssertSameGPU(THCudaTensor_checkGPU(
         state, 9, 
@@ -225,9 +225,9 @@ int spadd_backward(
         B_csr_row, B_csr_col, gradB,
         C_csr_row, C_csr_col, gradC));
 
-  int nnzA = THCudaIntTensor_size(state, A_csr_col, 0);
-  int nnzB = THCudaIntTensor_size(state, B_csr_col, 0);
-  int nnzC = THCudaIntTensor_size(state, C_csr_col, 0);
+  long nnzA = THCudaIntTensor_size(state, A_csr_col, 0);
+  long nnzB = THCudaIntTensor_size(state, B_csr_col, 0);
+  long nnzC = THCudaIntTensor_size(state, C_csr_col, 0);
 
   // Grab a reference
   A_csr_row = THCudaIntTensor_newContiguous(state, A_csr_row);
@@ -291,12 +291,12 @@ int spmv(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col, THCudaTensor *val,
     THCudaTensor *vector,
     THCudaTensor *output,
-    const int rows, const int cols, const int transpose) {
+    const long rows, const long cols, const int transpose) {
 
   THCAssertSameGPU(THCudaTensor_checkGPU(
         state, 5, csr_row, csr_col, val, vector, output));
 
-  int nnz = THCudaTensor_size(state, val, 0);
+  long nnz = THCudaTensor_size(state, val, 0);
 
   THArgCheck(rows+1 == THCudaIntTensor_size(state, csr_row, 0), 0,
       "csr rows should have rows+1 entries");
@@ -360,7 +360,7 @@ int spmv_backward_matrix(
     THCudaIntTensor *csr_row, THCudaIntTensor *csr_col,
     THCudaTensor *vector,
     THCudaTensor *grad_output, THCudaTensor *grad_matrix,
-    const int rows, const int cols) {
+    const long rows, const long cols) {
 
   // C = AB
   // dL/dA = dL/dC.Bt
@@ -368,7 +368,7 @@ int spmv_backward_matrix(
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
 
-  int nnz = THCudaIntTensor_size(state, csr_col, 0);
+  long nnz = THCudaIntTensor_size(state, csr_col, 0);
   int *p_csrRow = THCudaIntTensor_data(state, csr_row);
   int *p_csrCol = THCudaIntTensor_data(state, csr_col);
 
@@ -408,15 +408,15 @@ int spmv_backward_matrix(
 
 int spmm_forward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col, THCudaTensor *A_val,
-    const int rowsA, const int colsA,
+    const long rowsA, const long colsA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col, THCudaTensor *B_val,
-    const int rowsB, const int colsB,
+    const long rowsB, const long colsB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_val) {
 
   THAssertMsg(colsA == rowsB, "spmm: A and B should have"
               " compatible inner dimensions.");
-  int nnzA = THCudaTensor_size(state, A_val, 0);
-  int nnzB = THCudaTensor_size(state, B_val, 0);
+  long nnzA = THCudaTensor_size(state, A_val, 0);
+  long nnzB = THCudaTensor_size(state, B_val, 0);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   
@@ -493,18 +493,18 @@ int spmm_forward(
 int spmm_backward(
     THCudaIntTensor *A_csr_row, THCudaIntTensor *A_csr_col,
     THCudaTensor *A_val, THCudaTensor *A_grad_val,
-    const int rowsA, const int colsA,
+    const long rowsA, const long colsA,
     THCudaIntTensor *B_csr_row, THCudaIntTensor *B_csr_col,
     THCudaTensor *B_val, THCudaTensor *B_grad_val,
-    const int rowsB, const int colsB,
+    const long rowsB, const long colsB,
     THCudaIntTensor *C_csr_row, THCudaIntTensor *C_csr_col, THCudaTensor *C_grad_val) {
 
   THAssertMsg(colsA == rowsB, "spmm: A and B should have"
               " compatible inner dimensions.");
 
-  int nnzA = THCudaIntTensor_size(state, A_csr_col, 0);
-  int nnzB = THCudaIntTensor_size(state, B_csr_col, 0);
-  int nnzC = THCudaIntTensor_size(state, C_csr_col, 0);
+  long nnzA = THCudaIntTensor_size(state, A_csr_col, 0);
+  long nnzB = THCudaIntTensor_size(state, B_csr_col, 0);
+  long nnzC = THCudaIntTensor_size(state, C_csr_col, 0);
 
   // Grab reference
   A_csr_row = THCudaIntTensor_newContiguous(state, A_csr_row);

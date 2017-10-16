@@ -117,7 +117,6 @@ __global__ void matmul_preserve_sparsity_kernel(
         ++ptr2;
       }
     }
-    // printf("%d %d %.4f %d(%d) %d(%d) \n", row, col, sum, ptr1, end1, ptr2, end2);
 
     p_out[idx] = sum;
 
