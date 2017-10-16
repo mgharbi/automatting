@@ -59,20 +59,46 @@ def main(args):
   Lcmt = sp.transpose(Lcm)
   Lcm = sp.spmm(Lcmt, Lcm)
 
-  # # IU
-  # weights = IU_weights[sample["IU_inInd"].long().cuda().view(-1)]
+  # Matting Laplacian
+  weights = LOC_weights[sample["LOC_inInd"].long().cuda().view(-1)]
   # nweights = weights.numel()
-  # flows = Variable(sample['IU_flows'].cuda())
-  # flow_sz = flows.shape[1]
-  # flows = flows.mul(weights.view(-1, 1).repeat(1, flow_sz))
-  # neighInd = sample["IU_neighInd"].cuda()
-  # inInd = sample["IU_inInd"].clone()
-  # inInd = inInd.repeat(1, neighInd.shape[1]).cuda()
-  # # TODO: proper ordering? differentiable coo2csr?
-  # fake_data = np.zeros(flows.view(-1).shape)
-  # fake = scisp.csr_matrix(
-  #     (fake_data, (inInd.view(-1).cpu().numpy(), neighInd.view(-1).cpu().numpy())),
-  #     shape=(N, N))
+  flows = Variable(sample['LOC_flows'].cuda())
+  flow_sz = flows.shape[0]
+  tiled_weights = weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)
+  flows = flows.mul(tiled_weights)
+  fake_data = np.zeros(flows.view(-1).shape)
+  rows = sample["LOC_flowRows"].cuda()
+  cols = sample["LOC_flowCols"].cuda()
+  idx = rows + cols*N
+  import ipdb; ipdb.set_trace()
+  # fake = scisp.coo_matrix(
+  #     (fake_data, (rows, cols)),
+  #     shape=(N, N)).tocsr()
+  real = sp.from_coo(rows.view(-1), cols.view(-1), flows.data.view(-1), th.Size((N, N)))
+  # flows *= np.tile(np.reshape(weights, (1, 1, nweights)), [flow_sz, flow_sz, 1])
+  return
+
+  # IU
+  neighInd = sample["IU_neighInd"].numpy()[:, :5] # NOTE(mgharbi): bug in the data, row6 shouldnt be used
+  inInd = sample["IU_inInd"].numpy()
+  inInd = np.tile(inInd, (1, neighInd.shape[1]))
+  idx = inInd + neighInd*N
+  import ipdb; ipdb.set_trace()
+  return
+
+  weights = IU_weights[sample["IU_inInd"].long().cuda().view(-1)]
+  nweights = weights.numel()
+  flows = Variable(sample['IU_flows'].cuda())
+  flow_sz = flows.shape[1]
+  flows = flows.mul(weights.view(-1, 1).repeat(1, flow_sz))
+  neighInd = sample["IU_neighInd"].cuda()
+  inInd = sample["IU_inInd"].clone()
+  inInd = inInd.repeat(1, neighInd.shape[1]).cuda()
+  # TODO: proper ordering? differentiable coo2csr?
+  fake_data = np.zeros(flows.view(-1).shape)
+  fake = scisp.coo_matrix(
+      (fake_data, (inInd.view(-1).cpu().numpy(), neighInd.view(-1).cpu().numpy())),
+      shape=(N, N))
   # row_ptr = th.from_numpy(fake.indptr).cuda()
   # cols = th.from_numpy(fake.indices).cuda()
   # Wcs = sp.Sparse(row_ptr, cols, flows.view(-1), th.Size((N, N)))
