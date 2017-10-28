@@ -26,6 +26,31 @@ def _get_random_sparse_matrix(nrows, ncols, nnz):
   A = sp.from_coo(row, col, val, th.Size((nrows, ncols)))
   return A
 
+def test_permutation():
+  for i in range(10):
+    nrows = 10
+    ncols = 11
+    nnz = 9
+    row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
+    col = np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)
+
+    tuples = [(a, b) for a, b in zip(row, col)]
+    unique_tuples = set(tuples) #, key=lambda x: tuples.index(x))
+    # unique_tuples = sorted(set(tuples)) #, key=lambda x: tuples.index(x))
+    row, col = zip(*unique_tuples)
+    row = np.array(row)
+    col = np.array(col)
+    nnz = row.size
+
+    row = th.from_numpy(row).cuda()
+    col = th.from_numpy(col).cuda()
+    val = th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda()
+    A = sp.from_coo(row, col, val, th.Size((nrows, ncols)))
+
+    gradcheck(spfuncs.Coo2Csr.apply,
+        (A.csr_row_idx.data, A.col_idx.data, A.val.data, A.size),
+        eps=1e-4, atol=1e-5, rtol=1e-3,
+        raise_exception=True)
 
 def test_transpose():
   np.random.seed(0)

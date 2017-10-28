@@ -8,7 +8,7 @@ extern THCState *state;
 
 void sortCOOMatrix(
     const long rows, const long cols, const long nnz,
-    int* p_cooRow, int* p_cooCol, float* p_cooVal) {
+    int* p_cooRow, int* p_cooCol, float* p_cooVal, int* permutation) {
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   cusparseStatus_t status; 
   size_t pBufferSizeInBytes;
@@ -17,8 +17,8 @@ void sortCOOMatrix(
       nnz, p_cooRow, p_cooCol, &pBufferSizeInBytes);
   THCusparseCheck(status);
 
-  int* permutation;
-  THCudaCheck(THCudaMalloc(state, (void**) &permutation, nnz*sizeof(int)));
+  /* int* permutation; */
+  /* THCudaCheck(THCudaMalloc(state, (void**) &permutation, nnz*sizeof(int))); */
   int* pBuffer;
   THCudaCheck(
       THCudaMalloc(state, (void**) &pBuffer, pBufferSizeInBytes*sizeof(char)));
@@ -37,7 +37,7 @@ void sortCOOMatrix(
 
   THCudaCheck(THCudaFree(state, sortedVals));
   THCudaCheck(THCudaFree(state, pBuffer));
-  THCudaCheck(THCudaFree(state, permutation));
+  /* THCudaCheck(THCudaFree(state, permutation)); */
 }
 
 
@@ -45,6 +45,7 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *col_idx,
             THCudaTensor *val,
             THCudaIntTensor *csr_row_idx,
+            THCudaIntTensor *permutation,
             const long rows, const long cols) {
 
   THArgCheck(THCudaIntTensor_nDimension(state, row_idx) == 1,
@@ -75,11 +76,15 @@ int coo2csr(THCudaIntTensor *row_idx,
     return 1;
   }
 
+  THCudaIntTensor_resize1d(state, permutation, nnz);
+  THCudaIntTensor_zero(state, permutation);
+
   int *p_cooRow = THCudaIntTensor_data(state, row_idx);
   int *p_cooCol = THCudaIntTensor_data(state, col_idx);
   float *p_cooVal = THCudaTensor_data(state, val);
+  int *p_permutation = THCudaIntTensor_data(state, permutation);
 
-  sortCOOMatrix(rows, cols, nnz, p_cooRow, p_cooCol, p_cooVal);
+  sortCOOMatrix(rows, cols, nnz, p_cooRow, p_cooCol, p_cooVal, p_permutation);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
 

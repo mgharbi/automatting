@@ -8,29 +8,21 @@ class Coo2Csr(Function):
   def forward(ctx, row_idx, col_idx, val, size):
     ctx.size = size
     csr_row_idx = row_idx.new() 
-    coo_val = val.clone()  # TODO: cuda implementaion might reorder val: be careful!
-    coo_col_idx = col_idx.clone()  # TODO: cuda implementaion might reorder val: be careful!
-    sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, size[0], size[1])
-
-    # Slow check and copy for now
-    if (coo_val-val).abs().max() < 1e-8 and (coo_col_idx-col_idx).abs().max() < 1e-8:
-      ctx.val_was_reordered = False
-    else:
-      import ipdb; ipdb.set_trace()
-      ctx.val_was_reordered = True
-
+    permutation = csr_row_idx.new()
+    sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, permutation, size[0], size[1])
+    ctx.permutation = permutation
     return (csr_row_idx, col_idx, val)
 
   @staticmethod
-  def backward(ctx, grad_csr_row_idx, grad_csr_col_idx, grad_csr_val):
+  def backward(ctx, grad_csr_row_idx, grad_csr_col_idx,
+               grad_csr_val):
     grad_size = None
     grad_row_idx = None
     grad_col_idx = None
 
-    if ctx.val_was_reordered:
-      raise NotImplemented
-    else:
-      grad_val = grad_csr_val
+    permutation = ctx.permutation
+
+    grad_val = grad_csr_val[permutation.long()]
 
     return (grad_row_idx, grad_col_idx, grad_val, grad_size)
 

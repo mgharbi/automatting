@@ -15,7 +15,6 @@ import matting.sparse as sp
 import time
 
 # TODO: make "from coo" differentiable
-# TODO: make "transpose" differentiable
 # TODO: put cuda calls outside
 # TODO: put Variable calls outside
 
@@ -92,7 +91,6 @@ class MattingSystem(nn.Module):
       iFlows = flows[:, i, :].permute(1, 0).clone()
       # TODO: This one reorders the data: this is a problem
       iWmat = sp.from_coo(iRows.view(-1), neighInds.view(-1), iFlows.data.view(-1), th.Size((N, N)))  # <--- this is not differentiable
-      # iWmat.make_variable()
       if i == 0:
         Wmat = iWmat
       else:
@@ -105,7 +103,6 @@ class MattingSystem(nn.Module):
     row_sum = sp.spmv(Wmat, ones)
     Wmat.mul_(-1.0)
     diag = sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N)))  # <------- this is not diff
-    # diag.make_variable()
     Lmat = sp.spadd(diag, Wmat)
     return Lmat
 
@@ -121,7 +118,6 @@ class MattingSystem(nn.Module):
     inInd = sample["IU_inInd"].clone()
     inInd = inInd.repeat(1, neighInd.shape[1]).cuda()
     Wcs = sp.from_coo(inInd.view(-1), neighInd.view(-1), flows.data.view(-1), th.Size((N, N)))
-    # Wcs.make_variable()
     Wcst = sp.transpose(Wcs)
     Wcs = sp.spadd(Wcs, Wcst)
     Wcs.mul_(0.5)
@@ -129,6 +125,5 @@ class MattingSystem(nn.Module):
     row_sum = sp.spmv(Wcs, ones)
     Wcs.mul_(-1)
     diag = sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N)))
-    # diag.make_variable()
     Lcs = sp.spadd(diag, Wcs)
     return Lcs
