@@ -15,9 +15,6 @@ import matting.sparse as sp
 import time
 
 # TODO: make "from coo" differentiable
-# TODO: put cuda calls outside
-# TODO: put Variable calls outside
-
 
 class MattingSystem(nn.Module):
   """docstring for MattingSystem"""
@@ -34,9 +31,9 @@ class MattingSystem(nn.Module):
     Lmat = self._matting_laplacian(N, sample, LOC_weights)
     Lcs = self._intra_unknowns(N, sample, IU_weights)
 
-    kToUconf = Variable(sample['kToUconf'].cuda())
-    known = Variable(sample['known'].cuda())
-    kToU = Variable(sample['kToU'].cuda())
+    kToUconf = sample['kToUconf']
+    known = sample['known']
+    kToU = sample['kToU']
 
     linear_idx = th.from_numpy(np.arange(N, dtype=np.int32)).cuda()
     linear_csr_row_idx = th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda()
@@ -57,7 +54,7 @@ class MattingSystem(nn.Module):
     linear_csr_row_idx = th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda()
 
     # This one reorders the data, but is is ok we dont differentiate through it
-    Wcm = sp.from_coo(sample["Wcm_row"].cuda(), sample["Wcm_col"].cuda(), sample["Wcm_data"].cuda(), th.Size((N, N)))
+    Wcm = sp.from_coo(sample["Wcm_row"], sample["Wcm_col"], sample["Wcm_data"], th.Size((N, N)))
 
     # Below needs to be differentiable
     diag = sp.Sparse(linear_csr_row_idx, linear_idx, CM_weights, th.Size((N, N)))
@@ -75,9 +72,9 @@ class MattingSystem(nn.Module):
     linear_idx = th.from_numpy(np.arange(N, dtype=np.int32)).cuda()
 
     # Matting Laplacian
-    inInd = sample["LOC_inInd"].cuda()
+    inInd = sample["LOC_inInd"]
     weights = LOC_weights[inInd.long().view(-1)]
-    flows = Variable(sample['LOC_flows'].cuda())
+    flows = sample['LOC_flows']
     flow_sz = flows.shape[0]
     tiled_weights = weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)
     flows = flows.mul(tiled_weights)
@@ -102,21 +99,21 @@ class MattingSystem(nn.Module):
     ones = Variable(th.ones(N).cuda())
     row_sum = sp.spmv(Wmat, ones)
     Wmat.mul_(-1.0)
-    diag = sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N)))  # <------- this is not diff
+    diag = sp.from_coo(linear_idx, linear_idx, row_sum, th.Size((N, N)))  # <------- this is not diff
     Lmat = sp.spadd(diag, Wmat)
     return Lmat
 
   def _intra_unknowns(self, N, sample, IU_weights):
     linear_idx = th.from_numpy(np.arange(N, dtype=np.int32)).cuda()
 
-    weights = IU_weights[sample["IU_inInd"].long().cuda().view(-1)]
+    weights = IU_weights[sample["IU_inInd"].long().view(-1)]
     nweights = weights.numel()
-    flows = Variable(sample['IU_flows'][:, :5].cuda())  # NOTE(mgharbi): bug in the data, row6 shouldnt be used
+    flows = sample['IU_flows'][:, :5]  # NOTE(mgharbi): bug in the data, row6 shouldnt be used
     flow_sz = flows.shape[1]
     flows = flows.mul(weights.view(-1, 1).repeat(1, flow_sz))
-    neighInd = sample["IU_neighInd"][:, :5].cuda()
+    neighInd = sample["IU_neighInd"][:, :5].contiguous()
     inInd = sample["IU_inInd"].clone()
-    inInd = inInd.repeat(1, neighInd.shape[1]).cuda()
+    inInd = inInd.repeat(1, neighInd.shape[1])
     Wcs = sp.from_coo(inInd.view(-1), neighInd.view(-1), flows.data.view(-1), th.Size((N, N)))
     Wcst = sp.transpose(Wcs)
     Wcs = sp.spadd(Wcs, Wcst)

@@ -22,12 +22,27 @@ import matting.sparse as sp
 import matting.optim as optim
 import matting.modules as modules
 
+
+def make_variable(d, cuda=True):
+  ret = {}
+  for k in d.keys():
+    if "Tensor" not in type(d[k]).__name__:
+      ret[k] = d[k]
+      continue
+    if cuda:
+      ret[k] = Variable(d[k].cuda())
+    else:
+      ret[k] = Variable(d[k])
+  return ret
+
+
 def main(args):
   dataset = dset.MattingDataset(
       args.dataset, transform=dset.ToTensor())
 
   for sample_idx, sample in enumerate(dataset):
     start = time.time()
+    sample = make_variable(sample, cuda=True)
     end = time.time()
     print("load sample {:.2f}s/im".format((end-start)))
 
