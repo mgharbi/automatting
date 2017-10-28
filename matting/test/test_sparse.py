@@ -14,7 +14,7 @@ def _get_random_sparse_matrix(nrows, ncols, nnz):
   col = np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)
 
   tuples = [(a, b) for a, b in zip(row, col)]
-  unique_tuples = sorted(set(tuples), key=lambda x: tuples.index(x))
+  unique_tuples = sorted(set(tuples)) #, key=lambda x: tuples.index(x))
   row, col = zip(*unique_tuples)
   row = np.array(row)
   col = np.array(col)
@@ -35,7 +35,7 @@ def test_transpose():
     nnz = np.random.randint(1,nrows*ncols/2)
     A = _get_random_sparse_matrix(nrows, ncols, nnz)
 
-    A.make_variable()
+    # A.make_variable()
 
     Ad = A.to_dense()
     At = sp.transpose(A)
@@ -44,6 +44,11 @@ def test_transpose():
     diff = np.amax(np.abs(Ad.T-Atd))
 
     assert diff < 1e-5
+
+    gradcheck(spfuncs.Transpose.apply,
+        (A.csr_row_idx.data, A.col_idx.data, A.val.data, A.size),
+        eps=1e-4, atol=1e-5, rtol=1e-3,
+        raise_exception=True)
 
 
 def test_spadd_gradients():
@@ -55,9 +60,6 @@ def test_spadd_gradients():
     nnz = np.random.randint(1,nrows*ncols/2)
     A = _get_random_sparse_matrix(nrows, ncols, nnz)
     B = _get_random_sparse_matrix(nrows, ncols, nnz)
-
-    A.make_variable()
-    B.make_variable()
 
     gradcheck(spfuncs.SpAdd.apply,
         (A.csr_row_idx, A.col_idx, A.val,
@@ -78,7 +80,7 @@ def test_spmv_gradients():
     vector = th.from_numpy(
         np.random.uniform(size=(ncols,)).astype(np.float32)).cuda()
 
-    A.make_variable()
+    # A.make_variable()
     vector = Variable(vector, requires_grad=True)
 
     gradcheck(spfuncs.SpMV.apply,
@@ -90,7 +92,6 @@ def test_spmv_gradients():
 def test_spmm_gradients():
   np.random.seed(0)
 
-
   i = 0
   while i < 10:
     nrows = np.random.randint(3,8)
@@ -101,19 +102,10 @@ def test_spmm_gradients():
     A = _get_random_sparse_matrix(nrows, ncols, nnz)
     B = _get_random_sparse_matrix(ncols, ncols2, nnz2)
 
-    A.make_variable()
-    B.make_variable()
-
     C = sp.spmm(A, B)
     if C.nnz == 0: # TODO: handle this special case for backprop
       continue
     i += 1
-
-    loss = C.val.sum()
-    loss.backward()
-
-    Agrad = sp.Sparse(A.csr_row_idx, A.col_idx, A.val.grad, A.size)
-    Bgrad = sp.Sparse(B.csr_row_idx, B.col_idx, B.val.grad, B.size)
 
     gradcheck(spfuncs.SpMM.apply,
         (A.csr_row_idx, A.col_idx, A.val, A.size,
@@ -132,9 +124,9 @@ def test_coo2csr():
   n = 4
   A = sp.from_coo(row, col, val, th.Size((n, n)))
 
-  csr_row_idx = A.csr_row_idx.cpu().numpy()
-  col_idx = A.col_idx.cpu().numpy()
-  val2 = A.val.cpu().numpy()
+  csr_row_idx = A.csr_row_idx.data.cpu().numpy()
+  col_idx = A.col_idx.data.cpu().numpy()
+  val2 = A.val.data.cpu().numpy()
 
   assert csr_row_idx.size == n + 1
   assert (csr_row_idx == np.array([0, 2, 3, 4, 5], dtype=np.int32)).all()
@@ -148,21 +140,15 @@ def test_add_same_sparsity():
   col = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  val = Variable(th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda(), requires_grad=True)
   n = 4
   A = sp.from_coo(row, col, val, th.Size((n, n)))
   B = sp.from_coo(row, col, val, th.Size((n, n)))
 
-  A.make_variable()
-  B.make_variable()
-  
   C = sp.spadd(A, B)
   assert (C.csr_row_idx.data.cpu().numpy() == A.csr_row_idx.data.cpu().numpy()).all()
   assert (C.col_idx.data.cpu().numpy() == A.col_idx.data.cpu().numpy()).all()
   assert (C.val.data.cpu().numpy() == np.array([0, 2, 4, 6])).all()
-
-  loss = C.val.sum()
-  loss.backward()
 
 
 def test_add_different_sparsity():
@@ -172,20 +158,17 @@ def test_add_different_sparsity():
   col = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
-  A = sp.from_coo(row, col, val, th.Size((n, n)))
+  valA = Variable(th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda(), requires_grad=True)
+  A = sp.from_coo(row, col, valA, th.Size((n, n)))
 
   row = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   col = th.from_numpy(np.array(
         [1, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
-  B = sp.from_coo(row, col, val, th.Size((n, n)))
+  valB = Variable(th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda(), requires_grad=True)
+  B = sp.from_coo(row, col, valB, th.Size((n, n)))
 
-  A.val = Variable(A.val)
-  B.val = Variable(B.val)
-  
   C = sp.spadd(A, B)
 
   row_idx = C.csr_row_idx.data.cpu().numpy()
@@ -202,11 +185,10 @@ def test_matrix_vector():
   col = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  valA = Variable(th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda(), requires_grad=True)
   n = 4
-  A = sp.from_coo(row, col, val, th.Size((n, n+1)))
+  A = sp.from_coo(row, col, valA, th.Size((n, n+1)))
 
-  A.make_variable()
   v = Variable(th.ones(n+1).cuda(), requires_grad=True)
   
   out = sp.spmv(A, v)
@@ -217,7 +199,7 @@ def test_matrix_vector():
   loss.backward()
 
   assert np.amax(np.abs(v.grad.data.cpu().numpy() - np.array([0, 1, 2, 3, 0]))) < 1e-5
-  assert np.amax(np.abs(A.val.grad.data.cpu().numpy() - np.array([1, 1, 1, 1]))) < 1e-5
+  assert np.amax(np.abs(valA.grad.data.cpu().numpy() - np.array([1, 1, 1, 1]))) < 1e-5
 
 
 def test_multiply_same_sparsity():
@@ -226,15 +208,12 @@ def test_multiply_same_sparsity():
   col = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda()
+  valA = Variable(th.from_numpy(np.arange(nnz, dtype=np.float32)).cuda(), requires_grad=True)
   n = 4
-  A = sp.from_coo(row, col, val, th.Size((n, n)))
+  A = sp.from_coo(row, col, valA, th.Size((n, n)))
 
-  val = th.from_numpy(np.array([3, 6, 1, 8], dtype=np.float32)).cuda()
-  B = sp.from_coo(row, col, val, th.Size((n, n)))
-
-  A.make_variable()
-  B.make_variable()
+  valB = Variable(th.from_numpy(np.array([3, 6, 1, 8], dtype=np.float32)).cuda(), requires_grad=True)
+  B = sp.from_coo(row, col, valB, th.Size((n, n)))
   
   C = sp.spmm(A, B)
   assert (C.val.data.cpu().numpy() == np.array([0, 6, 2, 24])).all()
@@ -242,8 +221,8 @@ def test_multiply_same_sparsity():
   loss = C.val.sum()
   loss.backward()
 
-  assert np.amax(np.abs(B.val.grad.data.cpu().numpy() - np.array([0, 1, 2, 3]))) < 1e-5
-  assert np.amax(np.abs(A.val.grad.data.cpu().numpy() - np.array([3, 6, 1, 8]))) < 1e-5
+  assert np.amax(np.abs(valB.grad.data.cpu().numpy() - np.array([0, 1, 2, 3]))) < 1e-5
+  assert np.amax(np.abs(valA.grad.data.cpu().numpy() - np.array([3, 6, 1, 8]))) < 1e-5
 
 
 def test_multiply_different_sparsity():
@@ -253,35 +232,35 @@ def test_multiply_different_sparsity():
   col = th.from_numpy(np.array(
         [0, 3, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
-  A = sp.from_coo(row, col, val, th.Size((n, n)))
+  valA = Variable(th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda(), requires_grad=True)
+  A = sp.from_coo(row, col, valA, th.Size((n, n)))
 
   row = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
   col = th.from_numpy(np.array(
         [1, 1, 2, 3], dtype=np.int32)).cuda()
   nnz = row.numel()
-  val = th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda()
-  B = sp.from_coo(row, col, val, th.Size((n, n)))
+  valB = Variable(th.from_numpy(np.ones(nnz, dtype=np.float32)).cuda(), requires_grad=True)
+  B = sp.from_coo(row, col, valB, th.Size((n, n)))
 
-  A.make_variable()
-  B.make_variable()
+  # A.make_variable()
+  # B.make_variable()
   
   C = sp.spmm(A, B)
 
   row_idx = C.csr_row_idx.data.cpu().numpy()
   col_idx = C.col_idx.data.cpu().numpy()
-  val = C.val.data.cpu().numpy()
+  valC = C.val
 
   assert (row_idx == np.array([0, 2, 3, 4, 5], dtype=np.int32)).all()
   assert (col_idx == np.array([1, 3, 1, 2, 3], dtype=np.int32)).all()
-  assert (C.val.data.cpu().numpy() == np.array([1, 1, 1, 1, 1])).all()
+  assert (valC.data.cpu().numpy() == np.array([1, 1, 1, 1, 1])).all()
 
-  loss = C.val.sum()
+  loss = valC.sum()
   loss.backward()
 
-  assert (A.val.grad.numel() == A.nnz)
-  assert (B.val.grad.numel() == B.nnz)
+  assert (valA.grad.numel() == A.nnz)
+  assert (valB.grad.numel() == B.nnz)
 
 def test_cg():
   nnz = 10
@@ -292,10 +271,10 @@ def test_cg():
   row = th.from_numpy(row).cuda()
   col = th.from_numpy(col).cuda()
   val = th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda()
+  val = Variable(val, requires_grad=True)
   A = sp.from_coo(row, col, val, th.Size((nnz, nnz)))
-  A.make_variable()
   
-  optimizer = th.optim.Adam([A.val], lr=1e-1)
+  optimizer = th.optim.Adam([val], lr=1e-1)
   avg_loss = 0  # Running average of the loss for display
   for step in range(2000):
     b = Variable(th.from_numpy(np.random.uniform(size=(nnz,)).astype(np.float32)).cuda(), requires_grad=False)
@@ -327,8 +306,8 @@ def test_performance():
   ncols = 100000
   A = _get_random_sparse_matrix(nrows, ncols, nnz)
   B = _get_random_sparse_matrix(nrows, ncols, nnz)
-  A.make_variable()
-  B.make_variable()
+  # A.make_variable()
+  # B.make_variable()
 
   v = Variable(th.ones(ncols).cuda(), requires_grad=True)
   

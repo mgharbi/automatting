@@ -21,7 +21,7 @@ class Sparse(object):
     self.size = size
     self.storage = "csr"
 
-  def make_variable(self, requires_grad=True):
+  def make_variable(self, requires_grad=False):
     self.csr_row_idx = Variable(self.csr_row_idx)
     self.col_idx = Variable(self.col_idx)
     self.val = Variable(self.val, requires_grad=requires_grad)
@@ -57,12 +57,12 @@ def from_coo(row_idx, col_idx, val, size):
     raise ValueError("Row and Val should have the same number of elements.")
   if row_idx.numel() > size[0]*size[1]:
     raise ValueError("NNZ should be less than rows*cols.")
-  csr_row_idx, col_idx, val = spfuncs.coo2csr(row_idx, col_idx, val, size)
-  return Sparse(csr_row_idx, col_idx, val, size)
+  csr_row_idx, csr_col_idx, csr_val = spfuncs.Coo2Csr.apply(row_idx, col_idx, val, size)
+  return Sparse(csr_row_idx, csr_col_idx, csr_val, size)
 
 
 def transpose(A):
-  csc_row_idx, csc_col_idx, csc_val = spfuncs.csr2csc(A.csr_row_idx, A.col_idx, A.val, A.size)
+  csc_row_idx, csc_col_idx, csc_val = spfuncs.Transpose.apply(A.csr_row_idx, A.col_idx, A.val, A.size)
   return Sparse(csc_col_idx, csc_row_idx, csc_val, th.Size((A.size[1], A.size[0])))
 
 

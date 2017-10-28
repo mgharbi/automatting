@@ -3,20 +3,67 @@ from torch.autograd import Function
 from torch.autograd import Variable
 from .._ext import sparse
 
-def coo2csr(row_idx, col_idx, val, size):
-  csr_row_idx = row_idx.new() 
-  sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, size[0], size[1])
-  return (csr_row_idx, col_idx, val)
+class Coo2Csr(Function):
+  @staticmethod
+  def forward(ctx, row_idx, col_idx, val, size):
+    ctx.size = size
+    csr_row_idx = row_idx.new() 
+    coo_val = val.clone()  # TODO: cuda implementaion might reorder val: be careful!
+    coo_col_idx = col_idx.clone()  # TODO: cuda implementaion might reorder val: be careful!
+    sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, size[0], size[1])
 
-def csr2csc(row_idx, col_idx, val, size):
-  csc_row_idx = row_idx.data.new()
-  csc_col_idx = row_idx.data.new()
-  csc_val = val.data.new()
-  sparse.csr2csc(row_idx.data, col_idx.data, val.data, csc_row_idx, csc_col_idx, csc_val, size[0], size[1])
-  csc_row_idx = Variable(csc_row_idx)
-  csc_col_idx = Variable(csc_col_idx)
-  csc_val = Variable(csc_val)
-  return (csc_row_idx, csc_col_idx, csc_val)
+    # Slow check and copy for now
+    if (coo_val-val).abs().max() < 1e-8 and (coo_col_idx-col_idx).abs().max() < 1e-8:
+      ctx.val_was_reordered = False
+    else:
+      import ipdb; ipdb.set_trace()
+      ctx.val_was_reordered = True
+
+    return (csr_row_idx, col_idx, val)
+
+  @staticmethod
+  def backward(ctx, grad_csr_row_idx, grad_csr_col_idx, grad_csr_val):
+    grad_size = None
+    grad_row_idx = None
+    grad_col_idx = None
+
+    if ctx.val_was_reordered:
+      raise NotImplemented
+    else:
+      grad_val = grad_csr_val
+
+    return (grad_row_idx, grad_col_idx, grad_val, grad_size)
+
+
+class Transpose(Function):
+  @staticmethod
+  def forward(ctx, row_idx, col_idx, val, size):
+    csc_row_idx = row_idx.new()
+    csc_col_idx = row_idx.new()
+    csc_val = val.new()
+    sparse.csr2csc(row_idx, col_idx, val, csc_row_idx, csc_col_idx, csc_val, size[0], size[1])
+    # csc_row_idx = Variable(csc_row_idx)
+    # csc_col_idx = Variable(csc_col_idx)
+    # csc_val = Variable(csc_val)
+
+    ctx.save_for_backward(csc_row_idx, csc_col_idx)
+    ctx.size = size
+
+    return (csc_row_idx, csc_col_idx, csc_val)
+
+  @staticmethod
+  def backward(ctx, grad_csc_row_idx, grad_csc_col_idx, grad_csc_val):
+    size = ctx.size
+    csc_row_idx, csc_col_idx = ctx.saved_variables
+    row_idx = csc_row_idx.data.new()
+    col_idx = csc_col_idx.data.new()
+    sparse.csr2csc(
+        csc_row_idx.data, csc_col_idx.data, grad_csc_val.data, row_idx, col_idx, grad_val, size[1], size[0])
+    grad_col_idx = None
+    grad_row_idx = None
+    grad_val = Variable(grad_val)
+    return (grad_row_idx, grad_col_idx, grad_val)
+
 
 class SpAdd(Function):
   """Sum of sparse matrices."""

@@ -27,19 +27,21 @@ class MattingDataset(Dataset):
   def __getitem__(self, idx):
     data_file = os.path.join(self.root_dir, self.file_list[idx])
 
+    print data_file
+
     data = scipy.io.loadmat(data_file)["IFMdata"]
 
-    CM_inInd    = data['CM_inInd'][0][0]
-    CM_neighInd = data['CM_neighInd'][0][0]
+    CM_inInd    = data['CM_inInd'][0][0].astype(np.int64)  # NOTE(mgharbi): this where saved as double
+    CM_neighInd = data['CM_neighInd'][0][0].astype(np.int64)
     CM_flows    = data['CM_flows'][0][0].astype(np.float32)
 
-    LOC_inInd    = data['LOC_inInd'][0][0]
-    LOC_flowRows = data['LOC_flowRows'][0][0]
-    LOC_flowCols = data['LOC_flowCols'][0][0]
+    LOC_inInd    = data['LOC_inInd'][0][0].astype(np.int64)
+    # LOC_flowRows = data['LOC_flowRows'][0][0]
+    # LOC_flowCols = data['LOC_flowCols'][0][0]
     LOC_flows    = data['LOC_flows'][0][0].astype(np.float32)
 
-    IU_inInd    = data['IU_inInd'][0][0]
-    IU_neighInd = data['IU_neighInd'][0][0]
+    IU_inInd    = data['IU_inInd'][0][0].astype(np.int64)
+    IU_neighInd = data['IU_neighInd'][0][0].astype(np.int64)
     IU_flows    = data['IU_flows'][0][0].astype(np.float32)
 
     kToU = data['kToU'][0][0].astype(np.float32)
@@ -56,8 +58,8 @@ class MattingDataset(Dataset):
     CM_inInd     = self.convert_index(CM_inInd, h, w)
     CM_neighInd  = self.convert_index(CM_neighInd, h, w)
     LOC_inInd    = self.convert_index(LOC_inInd, h, w)
-    LOC_flowRows = self.convert_index(LOC_flowRows, h, w)
-    LOC_flowCols = self.convert_index(LOC_flowCols, h, w)
+    # LOC_flowRows = self.convert_index(LOC_flowRows, h, w)
+    # LOC_flowCols = self.convert_index(LOC_flowCols, h, w)
     IU_inInd     = self.convert_index(IU_inInd, h, w)
     IU_neighInd  = self.convert_index(IU_neighInd, h, w)
 
@@ -69,8 +71,8 @@ class MattingDataset(Dataset):
         "Wcm_col": Wcm.col,
         "Wcm_data": Wcm.data,
         "LOC_inInd": LOC_inInd,
-        "LOC_flowRows": LOC_flowRows,
-        "LOC_flowCols": LOC_flowCols,
+        # "LOC_flowRows": LOC_flowRows,
+        # "LOC_flowCols": LOC_flowCols,
         "LOC_flows": LOC_flows,
         "IU_inInd": IU_inInd,
         "IU_neighInd": IU_neighInd,
@@ -89,7 +91,7 @@ class MattingDataset(Dataset):
 
   def convert_index(self, old, h, w):
     idx = np.unravel_index(old, [w, h])
-    new = np.ravel_multi_index((idx[1], idx[0]), (h, w)) #.astype(np.int32)
+    new = np.ravel_multi_index((idx[1], idx[0]), (h, w)).astype(np.int32)
     return new
 
   def color_mixture(self, N, inInd, neighInd, flows):
@@ -97,6 +99,7 @@ class MattingDataset(Dataset):
     col_idx = neighInd
     Wcm = sp.coo_matrix((np.ravel(flows), (np.ravel(row_idx), np.ravel(col_idx))), shape=(N, N))
     return Wcm
+
 
 class ToTensor(object):
   """Convert sample ndarrays to tensors."""
