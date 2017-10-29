@@ -81,6 +81,8 @@ class MattingDataset(Dataset):
     start = time.time()
     fname = self.files[idx]
 
+    print(fname)
+
     matte = skimage.io.imread(self.matte_path(fname)).astype(np.float32)/255.0
     image = skimage.io.imread(self.image_path(fname)).astype(np.float32)/255.0
     trimap = skimage.io.imread(self.trimap_path(fname)).astype(np.float32)/255.0
@@ -145,7 +147,14 @@ class MattingDataset(Dataset):
     return sample
 
   def convert_index(self, old, h, w):
-    idx = np.unravel_index(old, [w, h])
+    if not (old-1 >=0).all():
+      print "invalid index", np.amin(old-1)
+      import ipdb; ipdb.set_trace()
+    try:
+      idx = np.unravel_index(old-1, [w, h])
+    except ValueError as e:
+      print e
+      import ipdb; ipdb.set_trace()
     new = np.ravel_multi_index((idx[1], idx[0]), (h, w)).astype(np.int32)
     return new
 

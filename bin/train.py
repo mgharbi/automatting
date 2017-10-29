@@ -34,10 +34,10 @@ def main(args, params):
 
   dataloader = DataLoader(data, 
       batch_size=1,
-      shuffle=True, num_workers=0)
+      shuffle=False, num_workers=0)
 
   val_dataloader = DataLoader(val_data, 
-      batch_size=1, shuffle=False, num_workers=0)
+      batch_size=1, shuffle=True, num_workers=0)
 
   log.info("Training with {} samples".format(len(data)))
 
@@ -56,7 +56,7 @@ def main(args, params):
 
   model = modules.get(params)
 
-  loss_fn = th.nn.MSELoss()
+  loss_fn = modules.CharbonnierLoss()
   optimizer = optim.Adam(model.parameters(), lr=args.lr,
                          weight_decay=args.weight_decay)
 
@@ -77,6 +77,8 @@ def main(args, params):
   loss_viz = viz.ScalarVisualizer("loss", env=name)
   image_viz = viz.BatchVisualizer("images", env=name)
   matte_viz = viz.BatchVisualizer("mattes", env=name)
+  weights_viz = viz.BatchVisualizer("weights", env=name)
+  trimap_viz = viz.BatchVisualizer("trimap", env=name)
 
   log.info("Model: {}\n".format(model))
 
@@ -133,9 +135,29 @@ def main(args, params):
             imgs = np.expand_dims(imgs, 1)
 
             image_viz.update(val_batchv['image'].cpu().data, per_row=1)
+            trimap_viz.update(val_batchv['trimap'].cpu().data, per_row=1)
+            weights = model.predicted_weights.permute(1, 0, 2, 3)
+            new_w = []
+            means = []
+            var = []
+            for ii in range(4):
+              w = weights[ii:ii+1, ...]
+              mu = w.mean()
+              sigma = w.std()
+              new_w.append(0.5*((w-mu)/(2*sigma)+1.0))
+              means.append(mu.data.cpu()[0])
+              var.append(sigma.data.cpu()[0])
+            weights = th.cat(new_w, 0)
+            weights = th.clamp(weights, 0, 1)
+            weights_viz.update(weights.cpu().data,
+                caption="CM {:.2f} ({:.4f})| LOC {:.2f} ({:.4f}) | IU {:.2f} ({:.4f}) | KU {:.2f} ({:.4f})".format(
+                  means[0], var[0],
+                  means[1], var[1],
+                  means[2], var[2],
+                  means[3], var[3]), per_row=4)
             matte_viz.update(
                 imgs,
-                caption="Epoch {:.1f} | mse = {:.6f} | target, output, diff".format(
+                caption="Epoch {:.1f} | loss = {:.6f} | target, output, diff".format(
                   frac_epoch, val_loss.data[0]), per_row=3)
             log.info("  viz at step {}, loss = {:.6f}".format(global_step, val_loss.cpu().data[0]))
             break  # Only one batch for validation

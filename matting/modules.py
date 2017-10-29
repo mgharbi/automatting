@@ -51,6 +51,7 @@ class MattingCNN(nn.Module):
     w = sample['image'].shape[3]
     N = h*w
     weights = self.net(th.cat([sample['image'], sample['trimap']], 1))
+    self.predicted_weights = weights
     weights = weights.view(4, h*w)
 
     CM_weights  = weights[0, :]
@@ -204,6 +205,16 @@ class MattingSystem(nn.Module):
     diag = sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N)))
     Lcs = sp.spadd(diag, Wcs)
     return Lcs
+
+
+class CharbonnierLoss(nn.Module):
+  def __init__(self, epsilon=1e-6):
+    super(CharbonnierLoss, self).__init__()
+    self.epsilon = epsilon
+
+  def forward(self, output, target): 
+    diff  = th.sqrt((th.pow(output-target, 2) + self.epsilon*self.epsilon))
+    return diff.mean()
 
 
 def get(params):
