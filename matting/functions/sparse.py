@@ -38,23 +38,24 @@ class Transpose(Function):
     # csc_col_idx = Variable(csc_col_idx)
     # csc_val = Variable(csc_val)
 
-    ctx.save_for_backward(csc_row_idx, csc_col_idx)
+    ctx.save_for_backward(csc_row_idx, csc_col_idx, val)
     ctx.size = size
 
     return (csc_row_idx, csc_col_idx, csc_val)
 
   @staticmethod
   def backward(ctx, grad_csc_row_idx, grad_csc_col_idx, grad_csc_val):
+    csc_row_idx, csc_col_idx, val = ctx.saved_variables
     size = ctx.size
-    csc_row_idx, csc_col_idx = ctx.saved_variables
     row_idx = csc_row_idx.data.new()
     col_idx = csc_col_idx.data.new()
+    grad_val = grad_csc_val.data.new()
     sparse.csr2csc(
-        csc_row_idx.data, csc_col_idx.data, grad_csc_val.data, row_idx, col_idx, grad_val, size[1], size[0])
+        csc_col_idx.data, csc_row_idx.data, grad_csc_val.data, col_idx, row_idx, grad_val, size[1], size[0])
     grad_col_idx = None
     grad_row_idx = None
     grad_val = Variable(grad_val)
-    return (grad_row_idx, grad_col_idx, grad_val)
+    return (grad_row_idx, grad_col_idx, grad_val, None)
 
 
 class SpAdd(Function):

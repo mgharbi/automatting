@@ -77,6 +77,8 @@ class MattingDataset(Dataset):
 
     matte = skimage.io.imread(self.matte_path(fname)).astype(np.float32)/255.0
     image = skimage.io.imread(self.image_path(fname)).astype(np.float32)/255.0
+    # matte = matte.transpose([2, 0, 1])
+    image = image.transpose([2, 0, 1])
 
     data = scipy.io.loadmat(self.ifm_path(fname))["IFMdata"]
 
@@ -110,9 +112,9 @@ class MattingDataset(Dataset):
 
     Wcm = self.color_mixture(N, CM_inInd, CM_neighInd, CM_flows)
     sample = {
-        "Wcm_row": Wcm.row,
-        "Wcm_col": Wcm.col,
-        "Wcm_data": Wcm.data,
+        "Wcm_row": np.squeeze(Wcm.row),
+        "Wcm_col": np.squeeze(Wcm.col),
+        "Wcm_data": np.squeeze(Wcm.data),
         "LOC_inInd": LOC_inInd,
         "LOC_flows": LOC_flows,
         "IU_inInd": IU_inInd,

@@ -1,3 +1,4 @@
+import numpy as np
 import torch as th
 import matting.functions.sparse as spfuncs
 
@@ -61,7 +62,14 @@ def from_coo(row_idx, col_idx, val, size):
   return Sparse(csr_row_idx, csr_col_idx, csr_val, size)
 
 
+def size_to_variable(size):
+  asize = np.array(list(size)).astype(np.int32)
+  asize = Variable(th.from_numpy(asize))
+  return asize
+
+
 def transpose(A):
+  # asize = size_to_variable(A.size)
   csc_row_idx, csc_col_idx, csc_val = spfuncs.Transpose.apply(A.csr_row_idx, A.col_idx, A.val, A.size)
   return Sparse(csc_col_idx, csc_row_idx, csc_val, th.Size((A.size[1], A.size[0])))
 
