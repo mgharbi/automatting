@@ -1,0 +1,4 @@
+[submodule "torchlib"]
+	path = torchlib
+	url = https://github.com/mgharbi/torchlib
+	branch = master
