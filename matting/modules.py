@@ -20,7 +20,6 @@ import matting.optim as optim
 
 from torchlib.modules import LinearChain
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 class MattingCNN(nn.Module):
@@ -68,15 +67,15 @@ class MattingCNN(nn.Module):
 
     A, b = self.system(single_sample, CM_weights, LOC_weights, IU_weights, KU_weights,
                        self.lmbda, N)
-    matte = self.solver(A, b)
-    # matte = weights[0, :]
+    # matte = self.solver(A, b)
+    matte = weights[0, :]
     matte = matte.view(1, h, w)
     # matte = np.clip(matte, 0, 1)
     return matte
 
 
 class MattingSolver(nn.Module):
-  def __init__(self, steps=50, verbose=True):
+  def __init__(self, steps=50, verbose=False):
     self.steps = steps
     self.verbose = verbose
     super(MattingSolver, self).__init__()
@@ -87,7 +86,7 @@ class MattingSolver(nn.Module):
     x_opt, err = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
     end = time.time()
     if self.verbose:
-      log.info("solve system {:.2f}s".format((end-start)))
+      log.debug("solve system {:.2f}s".format((end-start)))
     return x_opt
 
 
@@ -99,45 +98,45 @@ class MattingSystem(nn.Module):
   def forward(self, sample, CM_weights, LOC_weights, IU_weights, KU_weights, lmbda, N):
     start = time.time()
     Lcm = self._color_mixture(N, sample, CM_weights)
-    Lmat = self._matting_laplacian(N, sample, LOC_weights)
-    Lcs = self._intra_unknowns(N, sample, IU_weights)
+    # Lmat = self._matting_laplacian(N, sample, LOC_weights)
+    # Lcs = self._intra_unknowns(N, sample, IU_weights)
 
-    kToUconf = sample['kToUconf']
-    known = sample['known']
-    kToU = sample['kToU']
-
-    linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
-    linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
-
-    KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
-    known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
-
-    A = sp.spadd(Lcs, sp.spadd(Lmat, (sp.spadd(sp.spadd(Lcm, KU), known))))
-    b = sp.spmv(sp.spadd(KU, known), kToU)
+    # kToUconf = sample['kToUconf']
+    # known = sample['known']
+    # kToU = sample['kToU']
+    #
+    # linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
+    # linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
+    #
+    # KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
+    # known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
+    #
+    # A = sp.spadd(Lcs, sp.spadd(Lmat, (sp.spadd(sp.spadd(Lcm, KU), known))))
+    # b = sp.spmv(sp.spadd(KU, known), kToU)
     end = time.time()
-    log.info("prepare system {:.2f}s/im".format((end-start)))
+    log.debug("prepare system {:.2f}s/im".format((end-start)))
 
-    return A, b
+    return 0, 1
+    # return A, b
 
   def _color_mixture(self, N, sample, CM_weights):
     # CM
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
     linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
 
-    # This one reorders the data, but is is ok we dont differentiate through it
     Wcm = sp.from_coo(sample["Wcm_row"], sample["Wcm_col"].view(-1),
                       sample["Wcm_data"], th.Size((N, N)))
 
     # Below needs to be differentiable
     diag = sp.Sparse(linear_csr_row_idx, linear_idx, CM_weights, th.Size((N, N)))
     Wcm = sp.spmm(diag, Wcm)
-    ones = Variable(th.ones(N).cuda())
-    row_sum = sp.spmv(Wcm, ones)
-    Wcm.mul_(-1.0)
-    Lcm = sp.spadd(sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N))), Wcm)
-    Lcmt = sp.transpose(Lcm)
-    Lcm = sp.spmm(Lcmt, Lcm)
-    return Lcm
+    # ones = Variable(th.ones(N).cuda())
+    # row_sum = sp.spmv(Wcm, ones)
+    # Wcm.mul_(-1.0)
+    # Lcm = sp.spadd(sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N))), Wcm)
+    # Lcmt = sp.transpose(Lcm)
+    # Lcm = sp.spmm(Lcmt, Lcm)
+    # return Lcm
 
   def _matting_laplacian(self, N, sample, LOC_weights):
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())

@@ -488,8 +488,10 @@ int spmm_forward(
   // Release references
   THCudaIntTensor_free(state, A_csr_row);
   THCudaIntTensor_free(state, A_csr_col);
+  THCudaTensor_free(state, A_val);
   THCudaIntTensor_free(state, B_csr_row);
   THCudaIntTensor_free(state, B_csr_col);
+  THCudaTensor_free(state, B_val);
 
   return 0;
 }
@@ -610,6 +612,7 @@ int spmm_backward(
   // Release references
   THCudaIntTensor_free(state, A_csr_row);
   THCudaIntTensor_free(state, A_csr_col);
+  THCudaTensor_free(state, A_val);
   THCudaIntTensor_free(state, B_csr_row);
   THCudaIntTensor_free(state, B_csr_col);
   THCudaIntTensor_free(state, C_csr_row);

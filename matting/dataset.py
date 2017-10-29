@@ -10,7 +10,6 @@ import skimage.io
 import torch as th
 from torch.utils.data import Dataset
 
-logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
@@ -50,7 +49,7 @@ class MattingDataset(Dataset):
 
     duration = time.time() - start
 
-    log.info("Parsed dataset {} with {} samples in {:.2f}s".format(
+    log.debug("Parsed dataset {} with {} samples in {:.2f}s".format(
       root_dir, len(self), duration))
 
 
@@ -133,7 +132,7 @@ class MattingDataset(Dataset):
       sample = self.transform(sample)
 
     end = time.time()
-    log.info("load sample {:.2f}s/im".format((end-start)))
+    log.debug("load sample {:.2f}s/im".format((end-start)))
     return sample
 
   def convert_index(self, old, h, w):
