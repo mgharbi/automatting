@@ -34,10 +34,10 @@ def main(args, params):
 
   dataloader = DataLoader(data, 
       batch_size=1,
-      shuffle=False, num_workers=0)
+      shuffle=True, num_workers=0)
 
   val_dataloader = DataLoader(val_data, 
-      batch_size=min(len(val_data), 4), shuffle=False, num_workers=0)
+      batch_size=1, shuffle=False, num_workers=0)
 
   log.info("Training with {} samples".format(len(data)))
 

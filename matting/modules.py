@@ -19,30 +19,38 @@ import matting.sparse as sp
 import matting.optim as optim
 
 from torchlib.modules import LinearChain
+from torchlib.modules import SkipAutoencoder
 
 log = logging.getLogger(__name__)
 
 class MattingCNN(nn.Module):
-  def __init__(self):
+  def __init__(self, cg_steps=100):
     super(MattingCNN, self).__init__()
 
+    self.cg_steps = cg_steps
 
-    nn.LeakyReLU
-
-    self.net = LinearChain(3, 4, width=64, depth=3, batchnorm=True)
+    self.net = SkipAutoencoder(4, 4, width=64, depth=5, batchnorm=True, grow_width=True)
     self.system = MattingSystem()
-    self.solver = MattingSolver()
+    self.solver = MattingSolver(steps=cg_steps)
 
     # Learnable lmbda
     self.lmbda = nn.Parameter(th.ones(1)*100.0)
 
+    self.reset_parameters()
+
+  def reset_parameters(self):
+    self.net.prediction.bias.data[0] = 1.0
+    self.net.prediction.bias.data[1] = 1.0
+    self.net.prediction.bias.data[2] = 0.01
+    self.net.prediction.bias.data[3] = 0.05
+    self.net.prediction.weight.data.normal_(0, 0.001)
+
   def forward(self, sample):
-    # TODO(mgharbi): these should be variables, and eventually a network's output
     assert sample['image'].shape[0] == 1  # NOTE: we do not handle batches at this point
     h = sample['image'].shape[2]
     w = sample['image'].shape[3]
     N = h*w
-    weights = self.net(sample['image'])
+    weights = self.net(th.cat([sample['image'], sample['trimap']], 1))
     weights = weights.view(4, h*w)
 
     CM_weights  = weights[0, :]
@@ -67,15 +75,16 @@ class MattingCNN(nn.Module):
 
     A, b = self.system(single_sample, CM_weights, LOC_weights, IU_weights, KU_weights,
                        self.lmbda, N)
-    # matte = self.solver(A, b)
-    matte = weights[0, :]
+    matte = self.solver(A, b)
+    residual = self.solver.err
     matte = matte.view(1, h, w)
-    # matte = np.clip(matte, 0, 1)
+    matte = th.clamp(matte, 0, 1)
+    log.info("CG residual: {:.1f}".format(residual))
     return matte
 
 
 class MattingSolver(nn.Module):
-  def __init__(self, steps=50, verbose=False):
+  def __init__(self, steps=30, verbose=False):
     self.steps = steps
     self.verbose = verbose
     super(MattingSolver, self).__init__()
@@ -87,6 +96,7 @@ class MattingSolver(nn.Module):
     end = time.time()
     if self.verbose:
       log.debug("solve system {:.2f}s".format((end-start)))
+    self.err = err
     return x_opt
 
 
@@ -98,26 +108,25 @@ class MattingSystem(nn.Module):
   def forward(self, sample, CM_weights, LOC_weights, IU_weights, KU_weights, lmbda, N):
     start = time.time()
     Lcm = self._color_mixture(N, sample, CM_weights)
-    # Lmat = self._matting_laplacian(N, sample, LOC_weights)
-    # Lcs = self._intra_unknowns(N, sample, IU_weights)
+    Lmat = self._matting_laplacian(N, sample, LOC_weights)
+    Lcs = self._intra_unknowns(N, sample, IU_weights)
 
-    # kToUconf = sample['kToUconf']
-    # known = sample['known']
-    # kToU = sample['kToU']
-    #
-    # linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
-    # linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
-    #
-    # KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
-    # known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
-    #
-    # A = sp.spadd(Lcs, sp.spadd(Lmat, (sp.spadd(sp.spadd(Lcm, KU), known))))
-    # b = sp.spmv(sp.spadd(KU, known), kToU)
+    kToUconf = sample['kToUconf']
+    known = sample['known']
+    kToU = sample['kToU']
+
+    linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
+    linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
+
+    KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
+    known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
+
+    A = sp.spadd(Lcs, sp.spadd(Lmat, (sp.spadd(sp.spadd(Lcm, KU), known))))
+    b = sp.spmv(sp.spadd(KU, known), kToU)
     end = time.time()
     log.debug("prepare system {:.2f}s/im".format((end-start)))
 
-    return 0, 1
-    # return A, b
+    return A, b
 
   def _color_mixture(self, N, sample, CM_weights):
     # CM
@@ -127,16 +136,15 @@ class MattingSystem(nn.Module):
     Wcm = sp.from_coo(sample["Wcm_row"], sample["Wcm_col"].view(-1),
                       sample["Wcm_data"], th.Size((N, N)))
 
-    # Below needs to be differentiable
     diag = sp.Sparse(linear_csr_row_idx, linear_idx, CM_weights, th.Size((N, N)))
     Wcm = sp.spmm(diag, Wcm)
-    # ones = Variable(th.ones(N).cuda())
-    # row_sum = sp.spmv(Wcm, ones)
-    # Wcm.mul_(-1.0)
-    # Lcm = sp.spadd(sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N))), Wcm)
-    # Lcmt = sp.transpose(Lcm)
-    # Lcm = sp.spmm(Lcmt, Lcm)
-    # return Lcm
+    ones = Variable(th.ones(N).cuda())
+    row_sum = sp.spmv(Wcm, ones)
+    Wcm.mul_(-1.0)
+    Lcm = sp.spadd(sp.from_coo(linear_idx, linear_idx, row_sum.data, th.Size((N, N))), Wcm)
+    Lcmt = sp.transpose(Lcm)
+    Lcm = sp.spmm(Lcmt, Lcm)
+    return Lcm
 
   def _matting_laplacian(self, N, sample, LOC_weights):
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())

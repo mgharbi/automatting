@@ -24,7 +24,7 @@ class MattingDataset(Dataset):
     self.ifm_data_dir = os.path.join(root_dir, 'IFMdata')
     self.matte_dir = os.path.join(root_dir, 'alpha')
     self.images_dir = os.path.join(root_dir, 'images')
-    # self.trimap_dir = os.path.join(root_dir, 'trimap1')
+    self.trimap_dir = os.path.join(root_dir, 'trimap1')
 
     files = os.listdir(self.images_dir)
     data_regex = re.compile(r".*.(png|jpg|jpeg)$")
@@ -42,6 +42,10 @@ class MattingDataset(Dataset):
         continue
       if not os.path.exists(self.matte_path(f)):
         fid.write(self.matte_path(f))
+        fid.write("\n")
+        continue
+      if not os.path.exists(self.trimap_path(f)):
+        fid.write(self.trimap_path(f))
         fid.write("\n")
         continue
       self.files.append(f)
@@ -67,6 +71,9 @@ class MattingDataset(Dataset):
   def matte_path(self, f):
     return os.path.join(self.matte_dir, self.basename(f)+".jpg")
 
+  def trimap_path(self, f):
+    return os.path.join(self.trimap_dir, self.basename(f)+".png")
+
   def __len__(self):
     return len(self.files)
 
@@ -76,8 +83,9 @@ class MattingDataset(Dataset):
 
     matte = skimage.io.imread(self.matte_path(fname)).astype(np.float32)/255.0
     image = skimage.io.imread(self.image_path(fname)).astype(np.float32)/255.0
-    # matte = matte.transpose([2, 0, 1])
+    trimap = skimage.io.imread(self.trimap_path(fname)).astype(np.float32)/255.0
     image = image.transpose([2, 0, 1])
+    trimap = np.expand_dims(trimap, 0)
 
     data = scipy.io.loadmat(self.ifm_path(fname))["IFMdata"]
 
@@ -126,6 +134,7 @@ class MattingDataset(Dataset):
         "width": w,
         "image": image,
         "matte": matte,
+        "trimap": trimap,
     }
 
     if self.transform is not None:
