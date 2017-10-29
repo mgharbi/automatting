@@ -1,3 +1,6 @@
+import logging
+import time
+
 import numpy as np
 import scipy.io
 import scipy.sparse as sp
@@ -12,9 +15,9 @@ import torchvision.transforms as transforms
 
 import matting.sparse as sp
 
-import time
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
-# TODO: make "from coo" differentiable
 
 class MattingSystem(nn.Module):
   """docstring for MattingSystem"""
@@ -44,7 +47,7 @@ class MattingSystem(nn.Module):
     A = sp.spadd(Lcs, sp.spadd(Lmat, (sp.spadd(sp.spadd(Lcm, KU), known))))
     b = sp.spmv(sp.spadd(KU, known), kToU)
     end = time.time()
-    print("prepare system {:.2f}s/im".format((end-start)))
+    log.info("prepare system {:.2f}s/im".format((end-start)))
 
     return A, b
 

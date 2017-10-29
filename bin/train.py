@@ -3,6 +3,7 @@
 
 import os
 import argparse
+import logging
 
 import numpy as np
 import scipy.io
@@ -21,6 +22,9 @@ import matting.dataset as dset
 import matting.sparse as sp
 import matting.optim as optim
 import matting.modules as modules
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def make_variable(d, cuda=True):
@@ -41,10 +45,7 @@ def main(args):
       args.dataset, transform=dset.ToTensor())
 
   for sample_idx, sample in enumerate(dataset):
-    start = time.time()
     sample = make_variable(sample, cuda=True)
-    end = time.time()
-    print("load sample {:.2f}s/im".format((end-start)))
 
     h = sample['height']
     w = sample['width']
@@ -66,16 +67,15 @@ def main(args):
 
     start = time.time()
     x0 = Variable(th.zeros(N).cuda(), requires_grad=False)
-    x_opt, err = optim.sparse_cg(A, b, x0, steps=10, verbose=True)
+    x_opt, err = optim.sparse_cg(A, b, x0, steps=10, verbose=False)
     end = time.time()
-    print("solve system {:.2f}s".format((end-start)))
+    log.info("solve system {:.2f}s".format((end-start)))
 
     matte = x_opt.data.cpu().numpy()
     matte = np.reshape(matte, [h, w])
     matte = np.clip(matte, 0, 1)
 
-    skimage.io.imsave("torch_matte{}.png".format(sample_idx), matte)
-    break
+    # skimage.io.imsave("torch_matte{}.png".format(sample_idx), matte)
 
 
 if __name__ == "__main__":
