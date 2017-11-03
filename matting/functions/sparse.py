@@ -8,10 +8,13 @@ class Coo2Csr(Function):
   def forward(ctx, row_idx, col_idx, val, size):
     ctx.size = size
     csr_row_idx = row_idx.new() 
+    csr_col_idx = col_idx.new() 
+    csr_val = val.new() 
     permutation = csr_row_idx.new()
-    sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, permutation, size[0], size[1])
+    sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, csr_col_idx, csr_val,
+                   permutation, size[0], size[1])
     ctx.permutation = permutation
-    return (csr_row_idx, col_idx, val)
+    return (csr_row_idx, csr_col_idx, csr_val)
 
   @staticmethod
   def backward(ctx, grad_csr_row_idx, grad_csr_col_idx,

@@ -8,6 +8,8 @@ import matting.sparse as sp
 import matting.optim as optim
 import matting.functions.sparse as spfuncs
 
+import scipy.sparse as scp
+
 
 def _get_random_sparse_matrix(nrows, ncols, nnz):
   row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
@@ -157,6 +159,36 @@ def test_coo2csr():
   assert (csr_row_idx == np.array([0, 2, 3, 4, 5], dtype=np.int32)).all()
   assert (col_idx == np.array([0, 3, 1, 2, 3], dtype=np.int32)).all()
   assert (val2 == val.cpu().numpy()).all()
+
+
+def test_coo2csr2():
+  nrows = 10
+  ncols = 10
+  nnz = 30
+  row = np.random.randint(0, nrows, size=(nnz,), dtype=np.int32)
+  col = np.random.randint(0, ncols, size=(nnz,), dtype=np.int32)
+
+  tuples = [(a, b) for a, b in zip(row, col)]
+  unique_tuples = set(tuples) #, key=lambda x: tuples.index(x))
+  row, col = zip(*unique_tuples)
+  row = np.array(row)
+  col = np.array(col)
+  nnz = row.size
+  val = np.random.uniform(size=(nnz,)).astype(np.float32)
+
+  mat = scp.coo_matrix((val, (row, col)), shape=(nrows, ncols))
+  mat = mat.todense()
+
+  row = th.from_numpy(row).cuda()
+  col = th.from_numpy(col).cuda()
+  val = th.from_numpy(val).cuda()
+
+  A = sp.from_coo(row, col, val, th.Size((nrows, ncols)))
+  Ad = A.to_dense()
+
+  diff = np.amax(np.abs(Ad-mat))
+  assert diff < 1e-5
+
   
 
 def test_add_same_sparsity():

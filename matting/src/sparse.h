@@ -2,6 +2,8 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *col_idx,
             THCudaTensor *val,
             THCudaIntTensor *csr_row_idx,
+            THCudaIntTensor *csr_col_idx,
+            THCudaTensor *csr_val,
             THCudaIntTensor *permutation,
             const long rows, const long cols);
 

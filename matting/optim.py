@@ -32,7 +32,7 @@ def cg(A, b, x0, steps=1, thresh=1e-5, verbose=False):
   return x, err
 
 
-def sparse_cg(A, b, x0, steps=1, thresh=1e-5, verbose=False):
+def sparse_cg(A, b, x0, steps=1, thresh=1e-4, verbose=False):
   r = b - sp.spmv(A, x0)
   p = r.clone()
   x = x0.clone()

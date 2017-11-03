@@ -8,36 +8,36 @@ extern THCState *state;
 
 void sortCOOMatrix(
     const long rows, const long cols, const long nnz,
-    int* p_cooRow, int* p_cooCol, float* p_cooVal, int* permutation) {
+    int* p_cooRow, int* p_cooCol, float* p_cooVal, float* p_sorted_val, int* permutation) {
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
   cusparseStatus_t status; 
+
+  // Find working buffer size
   size_t pBufferSizeInBytes;
   status = cusparseXcoosort_bufferSizeExt(
       handle, rows, cols,
       nnz, p_cooRow, p_cooCol, &pBufferSizeInBytes);
   THCusparseCheck(status);
 
-  /* int* permutation; */
-  /* THCudaCheck(THCudaMalloc(state, (void**) &permutation, nnz*sizeof(int))); */
+  // Allocate 
   int* pBuffer;
   THCudaCheck(
       THCudaMalloc(state, (void**) &pBuffer, pBufferSizeInBytes*sizeof(char)));
-  float* sortedVals;
-  THCudaCheck(THCudaMalloc(state, (void**) &sortedVals, nnz*sizeof(float)));
+  /* float* sortedVals; */
+  /* THCudaCheck(THCudaMalloc(state, (void**) &sortedVals, nnz*sizeof(float))); */
 
   THCusparseCheck(cusparseCreateIdentityPermutation(
         handle, nnz, permutation));
   THCusparseCheck(cusparseXcoosortByRow(
         handle, rows, cols, nnz, p_cooRow, p_cooCol, permutation, pBuffer));
   THCusparseCheck(cusparseSgthr(
-        handle, nnz, p_cooVal, sortedVals, 
+        handle, nnz, p_cooVal, p_sorted_val, 
         permutation, CUSPARSE_INDEX_BASE_ZERO));
-  THCudaCheck(cudaMemcpy(
-        p_cooVal, sortedVals, nnz*sizeof(float), cudaMemcpyDeviceToDevice));
+  /* THCudaCheck(cudaMemcpy( */
+  /*       p_cooVal, sortedVals, nnz*sizeof(float), cudaMemcpyDeviceToDevice)); */
 
-  THCudaCheck(THCudaFree(state, sortedVals));
+  /* THCudaCheck(THCudaFree(state, sortedVals)); */
   THCudaCheck(THCudaFree(state, pBuffer));
-  /* THCudaCheck(THCudaFree(state, permutation)); */
 }
 
 
@@ -45,6 +45,8 @@ int coo2csr(THCudaIntTensor *row_idx,
             THCudaIntTensor *col_idx,
             THCudaTensor *val,
             THCudaIntTensor *csr_row_idx,
+            THCudaIntTensor *csr_col_idx,
+            THCudaTensor *csr_val,
             THCudaIntTensor *permutation,
             const long rows, const long cols) {
 
@@ -76,15 +78,29 @@ int coo2csr(THCudaIntTensor *row_idx,
     return 1;
   }
 
+  THCudaIntTensor_resize1d(state, csr_col_idx, nnz);
+  THCudaTensor_resize1d(state, csr_val, nnz);
   THCudaIntTensor_resize1d(state, permutation, nnz);
+
   THCudaIntTensor_zero(state, permutation);
 
-  int *p_cooRow = THCudaIntTensor_data(state, row_idx);
-  int *p_cooCol = THCudaIntTensor_data(state, col_idx);
   float *p_cooVal = THCudaTensor_data(state, val);
+
+  int *p_csrCol = THCudaIntTensor_data(state, csr_col_idx);
+  float *p_csrVal = THCudaTensor_data(state, csr_val);
   int *p_permutation = THCudaIntTensor_data(state, permutation);
 
-  sortCOOMatrix(rows, cols, nnz, p_cooRow, p_cooCol, p_cooVal, p_permutation);
+  // The sort is in place so we allocate new output buffer with copies of the indices
+  int *p_cooRow   = THCudaIntTensor_data(state, row_idx);
+  int *p_cooRow_copy;
+  THCudaCheck(THCudaMalloc(state, (void**) &p_cooRow_copy, nnz*sizeof(float)));
+  THCudaCheck(cudaMemcpy(
+        p_cooRow_copy, p_cooRow, nnz*sizeof(int), cudaMemcpyDeviceToDevice));
+  int *p_cooCol   = THCudaIntTensor_data(state, col_idx);
+  THCudaCheck(cudaMemcpy(
+        p_csrCol, p_cooCol, nnz*sizeof(int), cudaMemcpyDeviceToDevice));
+
+  sortCOOMatrix(rows, cols, nnz, p_cooRow_copy, p_csrCol, p_cooVal, p_csrVal, p_permutation);
 
   cusparseHandle_t handle = THCState_getCurrentSparseHandle(state);
 
@@ -92,7 +108,9 @@ int coo2csr(THCudaIntTensor *row_idx,
   int *p_csr_row_idx = THCudaIntTensor_data(state, csr_row_idx);
 
   THCusparseCheck(cusparseXcoo2csr(
-      handle, p_cooRow, nnz, rows, p_csr_row_idx, CUSPARSE_INDEX_BASE_ZERO));
+      handle, p_cooRow_copy, nnz, rows, p_csr_row_idx, CUSPARSE_INDEX_BASE_ZERO));
+
+  THCudaCheck(THCudaFree(state, p_cooRow_copy));
 
   THCudaIntTensor_free(state, row_idx);
   THCudaIntTensor_free(state, col_idx);
@@ -603,11 +621,11 @@ int spmm_backward(
         p_coo_rowB, p_colB, p_grad_valB, nnzB);
 
     THCudaCheck(THCudaFree(state, p_coo_rowB));
-    THCudaCheck(THCudaFree(state, p_csc_colA));
     THCudaCheck(THCudaFree(state, p_csc_rowA));
+    THCudaCheck(THCudaFree(state, p_csc_colA));
     THCudaCheck(THCudaFree(state, p_csc_valA));
-    THCudaCheck(THCudaFree(state, p_csc_colC));
     THCudaCheck(THCudaFree(state, p_csc_rowC));
+    THCudaCheck(THCudaFree(state, p_csc_colC));
     THCudaCheck(THCudaFree(state, p_csc_grad_valC));
   }
 
