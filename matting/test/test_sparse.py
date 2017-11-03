@@ -204,6 +204,28 @@ def test_add_different_sparsity():
   assert (C.val.data.cpu().numpy() == np.array([1, 1, 2, 2, 2])).all()
 
 
+def test_spadd():
+  np.random.seed(0)
+  for i in range(10):
+    nrows = np.random.randint(500,1000)
+    ncols = np.random.randint(500,1000)
+    nnz = np.random.randint(1,nrows*ncols/2)
+    A = _get_random_sparse_matrix(nrows, ncols, nnz)
+    nnz2 = np.random.randint(1,nrows*ncols/2)
+    B = _get_random_sparse_matrix(nrows, ncols, nnz2)
+
+    Ad = A.to_dense()
+    Bd = B.to_dense()
+
+    C = sp.spadd(A, B)
+    Cd = C.to_dense()
+
+    dense_add = Ad+Bd
+
+    diff = np.amax(np.abs(dense_add-Cd))
+    assert diff < 1e-8
+
+
 def test_matrix_vector():
   row = th.from_numpy(np.array(
         [0, 1, 2, 3], dtype=np.int32)).cuda()
