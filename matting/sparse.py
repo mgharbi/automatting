@@ -32,7 +32,8 @@ class Sparse(object):
     return self.val.numel()
 
   def mul_(self, s):
-    self.val.mul_(s)
+    self.val = self.val.mul(s)
+    # self.val.mul_(s)
 
   def to_dense(self):
     vals = self.val.data.cpu()

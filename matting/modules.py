@@ -12,6 +12,7 @@ import skimage.io
 
 import torch as th
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 import torchvision.transforms as transforms
@@ -50,48 +51,51 @@ class MattingCNN(nn.Module):
     self.reset_parameters()
 
   def reset_parameters(self):
-    self.net.prediction.bias.data[0] = 1.0
-    self.net.prediction.bias.data[1] = 1.0
-    self.net.prediction.bias.data[2] = 0.01
-    self.net.prediction.bias.data[3] = 0.05
-    self.net.prediction.weight.data.normal_(0, 0.001)
+    pass
+    # self.net.prediction.bias.data[0] = 1.0
+    # self.net.prediction.bias.data[1] = 1.0
+    # self.net.prediction.bias.data[2] = 0.01
+    # self.net.prediction.bias.data[3] = 0.05
+    # self.net.prediction.weight.data.normal_(0, 0.001)
 
   def forward(self, sample):
     assert sample['image'].shape[0] == 1  # NOTE: we do not handle batches at this point
     h = sample['image'].shape[2]
     w = sample['image'].shape[3]
     N = h*w
-    weights = self.net(th.cat([sample['image'], sample['trimap']], 1))
+    # force positive weights
+    weights = F.relu(self.net(th.cat([sample['image'], sample['trimap']], 1)))
     self.predicted_weights = weights
-    weights = self.predicted_weights.view(4, h*w)
+    weights = weights.view(4, h*w)
 
-    # CM_weights  = weights[0, :]
-    # LOC_weights = weights[1, :]
-    # IU_weights  = weights[2, :]
-    # KU_weights  = weights[3, :]
+    CM_weights  = weights[0, :]
+    LOC_weights = weights[1, :]
+    IU_weights  = weights[2, :]
+    KU_weights  = weights[3, :]
 
-    cm_mult  = 1.0;
-    loc_mult = 1.0;
-    iu_mult  = 0.01;
-    ku_mult  = 0.05;
-    lmbda    = 100.0;
-    CM_weights  = Variable(cm_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    LOC_weights = Variable(loc_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    IU_weights  = Variable(iu_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    KU_weights  = Variable(ku_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
+    # cm_mult  = 1.0;
+    # loc_mult = 1.0;
+    # iu_mult  = 0.01;
+    # ku_mult  = 0.05;
+    # lmbda    = 100.0;
+    # CM_weights  = Variable(cm_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
+    # LOC_weights = Variable(loc_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
+    # IU_weights  = Variable(iu_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
+    # KU_weights  = Variable(ku_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
 
     single_sample = {}
     for k in sample.keys():
       if "Tensor" not in type(sample[k]).__name__:
         single_sample[k] = sample[k][0, ...]
 
-    A, b = self.system(single_sample, CM_weights, LOC_weights, IU_weights, KU_weights,
-                       self.lmbda, N)
+    A, b = self.system(
+        single_sample, CM_weights, LOC_weights,
+        IU_weights, KU_weights, self.lmbda, N)
     matte = self.solver(A, b)
     residual = self.solver.err
     matte = matte.view(1, 1, h, w)
     matte = th.clamp(matte, 0, 1)
-    log.info("CG residual: {:.1f}".format(residual))
+    log.info("CG residual: {:.1f} in {} steps".format(residual, self.solver.steps))
     return matte
 
 
@@ -104,11 +108,12 @@ class MattingSolver(nn.Module):
   def forward(self, A, b):
     start = time.time()
     x0 = Variable(th.zeros(b.shape[0]).cuda(), requires_grad=False)
-    x_opt, err = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
+    x_opt, err, steps = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
     end = time.time()
     if self.verbose:
       log.debug("solve system {:.2f}s".format((end-start)))
     self.err = err
+    self.steps = steps
     return x_opt
 
 
@@ -133,18 +138,14 @@ class MattingSystem(nn.Module):
     KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
     known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
 
-    A = sp.spadd(Lmat, sp.spadd(KU, known))
+    # A = sp.spadd(Lmat, sp.spadd(KU, known))
     # A = sp.spadd(Lcm, sp.spadd(sp.spadd(KU, known), Lcs))
-    # A = sp.spadd(Lcm, sp.spadd(Lmat, sp.spadd(sp.spadd(KU, known), Lcs)))
+    A = sp.spadd(Lcm, sp.spadd(Lmat, sp.spadd(sp.spadd(KU, known), Lcs)))
     b = sp.spmv(sp.spadd(KU, known), kToU)
 
     end = time.time()
     log.debug("prepare system {:.2f}s/im".format((end-start)))
 
-    # scipy.io.savemat("1_in_numpy_no_permute.mat", {
-    #   "Lmat_row": Lcm.val.cpu().data.numpy(),
-    #   })
-    # raise ValueError
 
     return A, b
 
@@ -166,43 +167,43 @@ class MattingSystem(nn.Module):
     Lcm = sp.spmm(Lcmt, Lcm)
     return Lcm
 
-  # def _matting_laplacian(self, N, sample, LOC_weights):
-  #   linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
-  #
-  #   w = sample['image'].shape[-1]
-  #   h = sample['image'].shape[-2]
-  #
-  #   # Matting Laplacian
-  #   inInd = sample["LOC_inInd"]
-  #   weights = LOC_weights[inInd.long().view(-1)]
-  #   flows = sample['LOC_flows']
-  #   flow_sz = flows.shape[0]
-  #   tiled_weights = weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)
-  #   flows = flows.mul(tiled_weights)
-  #
-  #   neighInds = th.cat(
-  #       [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
-  #
-  #   for i in range(9):
-  #     iRows = neighInds[:, i].clone().view(-1, 1).repeat(1, 9)
-  #     iFlows = flows[:, i, :].contiguous() #.permute(1, 0).clone()
-  #     iWmat = sp.from_coo(iRows.view(-1), neighInds.view(-1), iFlows.view(-1), th.Size((N, N)))
-  #     if i == 0:
-  #       Wmat = iWmat
-  #     else:
-  #       Wmat = sp.spadd(Wmat, iWmat)
-  #
-  #   Wmatt = sp.transpose(Wmat)
-  #   Wmat = sp.spadd(Wmat, Wmatt)
-  #   Wmat.mul_(0.5)
-  #   ones = Variable(th.ones(N).cuda())
-  #   row_sum = sp.spmv(Wmat, ones)
-  #   Wmat.mul_(-1.0)
-  #   diag = sp.from_coo(linear_idx, linear_idx, row_sum, th.Size((N, N)))
-  #   Lmat = sp.spadd(diag, Wmat)
-  #   return Lmat
-
   def _matting_laplacian(self, N, sample, LOC_weights):
+    linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
+
+    w = sample['image'].shape[-1]
+    h = sample['image'].shape[-2]
+
+    # Matting Laplacian
+    inInd = sample["LOC_inInd"]
+    weights = LOC_weights[inInd.long().view(-1)]
+    flows = sample['LOC_flows']
+    flow_sz = flows.shape[0]
+    tiled_weights = weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)
+    flows = flows.mul(tiled_weights)
+
+    neighInds = th.cat(
+        [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
+
+    for i in range(9):
+      iRows = neighInds[:, i:i+1].clone().repeat(1, 9)
+      iFlows = flows[:, i, :].contiguous().permute(1, 0).clone()
+      iWmat = sp.from_coo(iRows.view(-1), neighInds.view(-1), iFlows.view(-1), th.Size((N, N)))
+      if i == 0:
+        Wmat = iWmat
+      else:
+        Wmat = sp.spadd(Wmat, iWmat)
+
+    Wmatt = sp.transpose(Wmat)
+    Wmat = sp.spadd(Wmat, Wmatt)
+    Wmat.mul_(0.5)
+    ones = Variable(th.ones(N).cuda())
+    row_sum = sp.spmv(Wmat, ones)
+    Wmat.mul_(-1.0)
+    diag = sp.from_coo(linear_idx, linear_idx, row_sum, th.Size((N, N)))
+    Lmat = sp.spadd(diag, Wmat)
+    return Lmat
+
+  def _matting_laplacian_verbose(self, N, sample, LOC_weights):
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
 
     w = sample['image'].shape[-1]
@@ -308,7 +309,7 @@ class MattingSystem(nn.Module):
     diag = sp.from_coo(linear_idx, linear_idx, row_sum, th.Size((N, N)))
     Lmat = sp.spadd(diag, Wmat)
 
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
 
     return Lmat
 

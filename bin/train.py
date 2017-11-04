@@ -32,9 +32,13 @@ def main(args, params):
   data = dataset.MattingDataset(args.data_dir, transform=dataset.ToTensor())
   val_data = dataset.MattingDataset(args.data_dir, transform=dataset.ToTensor())
 
+  if len(data) == 0:
+    log.info("no input files found, aborting.")
+    return
+
   dataloader = DataLoader(data, 
       batch_size=1,
-      shuffle=False, num_workers=0)
+      shuffle=True, num_workers=4)
 
   val_dataloader = DataLoader(val_data, 
       batch_size=1, shuffle=True, num_workers=0)
@@ -56,7 +60,8 @@ def main(args, params):
 
   model = modules.get(params)
 
-  loss_fn = modules.CharbonnierLoss()
+  # loss_fn = modules.CharbonnierLoss()
+  loss_fn = modules.AlphaLoss()
   optimizer = optim.Adam(model.parameters(), lr=args.lr,
                          weight_decay=args.weight_decay)
 
@@ -88,8 +93,9 @@ def main(args, params):
   log.info("Starting training from step {}".format(global_step))
 
   smooth_loss = 0
+  smooth_loss_ifm = 0
   smooth_time = 0
-  ema_alpha = 0.99
+  ema_alpha = 0.9
   last_checkpoint_time = time.time()
   try:
     epoch = 0
@@ -104,15 +110,18 @@ def main(args, params):
         optimizer.zero_grad()
         output = model(batch_v)
         target = crop_like(batch_v['matte'], output)
+        ifm = crop_like(batch_v['vanilla'], output)
         loss = loss_fn(output, target)
+        loss_ifm = loss_fn(ifm, target)
 
         loss.backward()
         optimizer.step()
         global_step += 1
 
         batch_end = time.time()
-        smooth_loss = ema_alpha*loss.data[0] + (1.0-ema_alpha)*smooth_loss
-        smooth_time = ema_alpha*(batch_end-batch_start) + (1.0-ema_alpha)*smooth_time
+        smooth_loss = (1.0-ema_alpha)*loss.data[0] + ema_alpha*smooth_loss
+        smooth_loss_ifm = (1.0-ema_alpha)*loss_ifm.data[0] + ema_alpha*smooth_loss_ifm
+        smooth_time = (1.0-ema_alpha)*(batch_end-batch_start) + ema_alpha*smooth_time
 
         if global_step % args.log_step == 0:
           log.info("Epoch {:.1f} | loss = {:.7f} | {:.1f} samples/s".format(
@@ -124,15 +133,15 @@ def main(args, params):
             val_batchv = make_variable(val_batch, cuda=True)
             output = model(val_batchv)
             target = crop_like(val_batchv['matte'], output)
+            vanilla = crop_like(val_batchv['vanilla'], output)
             val_loss = loss_fn(output, target)
 
             mini, maxi = target.min(), target.max()
 
             diff = (th.abs(output-target))
-            vizdata = th.cat((target, output, diff), 0)
+            vizdata = th.cat((target, output, vanilla, diff), 0)
             vizdata = (vizdata-mini)/(maxi-mini)
             imgs = np.power(np.clip(vizdata.cpu().data, 0, 1), 1.0/2.2)
-            imgs = np.expand_dims(imgs, 1)
 
             image_viz.update(val_batchv['image'].cpu().data, per_row=1)
             trimap_viz.update(val_batchv['trimap'].cpu().data, per_row=1)
@@ -150,19 +159,21 @@ def main(args, params):
             weights = th.cat(new_w, 0)
             weights = th.clamp(weights, 0, 1)
             weights_viz.update(weights.cpu().data,
-                caption="CM {:.2f} ({:.4f})| LOC {:.2f} ({:.4f}) | IU {:.2f} ({:.4f}) | KU {:.2f} ({:.4f})".format(
+                caption="CM {:.4f} ({:.4f})| LOC {:.4f} ({:.4f}) | IU {:.4f} ({:.4f}) | KU {:.4f} ({:.4f}) | lambda {:4f}".format(
                   means[0], var[0],
                   means[1], var[1],
                   means[2], var[2],
-                  means[3], var[3]), per_row=4)
+                  means[3], var[3], model.lmbda.data[0]), per_row=4)
             matte_viz.update(
                 imgs,
-                caption="Epoch {:.1f} | loss = {:.6f} | target, output, diff".format(
-                  frac_epoch, val_loss.data[0]), per_row=3)
+                caption="Epoch {:.1f} | loss = {:.6f} | target, output, vanilla, diff".format(
+                  frac_epoch, val_loss.data[0]), per_row=4)
             log.info("  viz at step {}, loss = {:.6f}".format(global_step, val_loss.cpu().data[0]))
             break  # Only one batch for validation
 
-          loss_viz.update(frac_epoch, smooth_loss)
+          losses = [smooth_loss, smooth_loss_ifm]
+          legend = ["ours", "ref_ifm"]
+          loss_viz.update(frac_epoch, losses, legend=legend)
 
           model.train(True)
 

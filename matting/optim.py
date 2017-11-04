@@ -39,6 +39,7 @@ def sparse_cg(A, b, x0, steps=1, thresh=1e-4, verbose=False):
   res_old = r.dot(r)
   err = -1
 
+  k = 0
   for k in range(steps):
     Ap = sp.spmv(A, p)
     alpha = res_old / p.dot(Ap)
@@ -54,4 +55,4 @@ def sparse_cg(A, b, x0, steps=1, thresh=1e-4, verbose=False):
       log.info("CG step {} / {}, residual = {:g}".format(k+1, steps, err))
     p = r + res_new/res_old*p
     res_old = res_new
-  return x, err
+  return x, err, k

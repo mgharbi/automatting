@@ -21,10 +21,12 @@ class MattingDataset(Dataset):
     self.transform = transform
 
     self.root_dir = root_dir
-    self.ifm_data_dir = os.path.join(root_dir, 'IFMdata')
+    self.ifm_data_dir = os.path.join(root_dir, 'IFMData')
+    # self.ifm_data_dir = os.path.join(root_dir, 'IFMData1_overkill')
     self.matte_dir = os.path.join(root_dir, 'alpha')
     self.images_dir = os.path.join(root_dir, 'images')
-    self.trimap_dir = os.path.join(root_dir, 'trimap1')
+    self.trimap_dir = os.path.join(root_dir, 'trimap')
+    self.vanilla_dir = os.path.join(root_dir, 'vanilla')
 
     files = os.listdir(self.images_dir)
     data_regex = re.compile(r".*.(png|jpg|jpeg)$")
@@ -62,14 +64,18 @@ class MattingDataset(Dataset):
 
   def basename(self, f):
     fname = os.path.splitext(f)[0]
-    basename = "_".join(fname.split("_")[:-1])
+    basename = fname
+    # basename = "_".join(fname.split("_")[:-1])
     return basename
 
   def ifm_path(self, f):
     return os.path.join(self.ifm_data_dir, os.path.splitext(f)[0]+".mat")
 
   def matte_path(self, f):
-    return os.path.join(self.matte_dir, self.basename(f)+".jpg")
+    return os.path.join(self.matte_dir, self.basename(f)+".png")
+
+  def vanilla_path(self, f):
+    return os.path.join(self.vanilla_dir, self.basename(f)+".png")
 
   def trimap_path(self, f):
     return os.path.join(self.trimap_dir, self.basename(f)+".png")
@@ -81,12 +87,13 @@ class MattingDataset(Dataset):
     start = time.time()
     fname = self.files[idx]
 
-    print(fname)
-
-    matte = skimage.io.imread(self.matte_path(fname)).astype(np.float32)/255.0
+    matte = skimage.io.imread(self.matte_path(fname)).astype(np.float32)[:, :, 0:1]/255.0
+    vanilla = skimage.io.imread(self.vanilla_path(fname)).astype(np.float32)[:, :, np.newaxis]/255.0
     image = skimage.io.imread(self.image_path(fname)).astype(np.float32)/255.0
     trimap = skimage.io.imread(self.trimap_path(fname)).astype(np.float32)/255.0
     image = image.transpose([2, 0, 1])
+    matte = matte.transpose([2, 0, 1])
+    vanilla = vanilla.transpose([2, 0, 1])
     trimap = np.expand_dims(trimap, 0)
 
     data = scipy.io.loadmat(self.ifm_path(fname))["IFMdata"]
@@ -97,6 +104,15 @@ class MattingDataset(Dataset):
 
     LOC_inInd    = data['LOC_inInd'][0][0].astype(np.int64)
     LOC_flows    = data['LOC_flows'][0][0]
+    # LOC_flows1    = data['LOC_flows1'][0][0]
+    # LOC_flows2    = data['LOC_flows2'][0][0]
+    # LOC_flows3    = data['LOC_flows3'][0][0]
+    # LOC_flows4    = data['LOC_flows4'][0][0]
+    # LOC_flows5    = data['LOC_flows5'][0][0]
+    # LOC_flows6    = data['LOC_flows6'][0][0]
+    # LOC_flows7    = data['LOC_flows7'][0][0]
+    # LOC_flows8    = data['LOC_flows8'][0][0]
+    # LOC_flows9    = data['LOC_flows9'][0][0]
 
     IU_inInd    = data['IU_inInd'][0][0].astype(np.int64)
     IU_neighInd = data['IU_neighInd'][0][0].astype(np.int64)
@@ -126,6 +142,15 @@ class MattingDataset(Dataset):
         "Wcm_data": np.squeeze(Wcm.data),
         "LOC_inInd": LOC_inInd,
         "LOC_flows": LOC_flows,
+        # "LOC_flows1": LOC_flows1,
+        # "LOC_flows2": LOC_flows2,
+        # "LOC_flows3": LOC_flows3,
+        # "LOC_flows4": LOC_flows4,
+        # "LOC_flows5": LOC_flows5,
+        # "LOC_flows6": LOC_flows6,
+        # "LOC_flows7": LOC_flows7,
+        # "LOC_flows8": LOC_flows8,
+        # "LOC_flows9": LOC_flows9,
         "IU_inInd": IU_inInd,
         "IU_neighInd": IU_neighInd,
         "IU_flows": IU_flows,
@@ -136,6 +161,7 @@ class MattingDataset(Dataset):
         "width": w,
         "image": image,
         "matte": matte,
+        "vanilla": vanilla,
         "trimap": trimap,
     }
 
