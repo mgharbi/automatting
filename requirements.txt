@@ -1,1 +1,9 @@
-torch==0.2.0.post3
+torch==0.2.0+5795b17
+torchvision==0.1.9
+scikit_image==0.9.3
+matplotlib==2.0.0
+scipy==0.18.1
+numpy==1.13.3
+ipdb==0.10.3
+numpy==1.13.3
+setproctitle==1.1.10
