@@ -17,3 +17,8 @@ Run tests:
 
     cd matting 
     py.test test
+
+
+Visualization, launch a visdom server:
+
+    python -m 'visdom.server'
