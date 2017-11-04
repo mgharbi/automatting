@@ -41,21 +41,18 @@ class MattingCNN(nn.Module):
 
     self.cg_steps = cg_steps
 
-    self.net = SkipAutoencoder(4, 4, width=16, depth=5, batchnorm=True, grow_width=False)
+    self.net = SkipAutoencoder(4, 5, width=16, depth=5, batchnorm=True, grow_width=False)
     self.system = MattingSystem()
     self.solver = MattingSolver(steps=cg_steps)
-
-    # Learnable lmbda
-    self.lmbda = nn.Parameter(th.ones(1)*100.0)
 
     self.reset_parameters()
 
   def reset_parameters(self):
-    pass
-    # self.net.prediction.bias.data[0] = 1.0
-    # self.net.prediction.bias.data[1] = 1.0
-    # self.net.prediction.bias.data[2] = 0.01
-    # self.net.prediction.bias.data[3] = 0.05
+    self.net.prediction.bias.data[0] = 1
+    self.net.prediction.bias.data[1] = 1
+    self.net.prediction.bias.data[2] = 1
+    self.net.prediction.bias.data[3] = 1
+    self.net.prediction.bias.data[4] = 1
     # self.net.prediction.weight.data.normal_(0, 0.001)
 
   def forward(self, sample):
@@ -63,15 +60,17 @@ class MattingCNN(nn.Module):
     h = sample['image'].shape[2]
     w = sample['image'].shape[3]
     N = h*w
-    # force positive weights
-    weights = F.relu(self.net(th.cat([sample['image'], sample['trimap']], 1)))
+    # force non-negative weights
+    eps = 1e-8
+    weights = F.relu(self.net(th.cat([sample['image'], sample['trimap']], 1))) + eps
     self.predicted_weights = weights
-    weights = weights.view(4, h*w)
+    weights = weights.view(5, h*w)
 
     CM_weights  = weights[0, :]
     LOC_weights = weights[1, :]
     IU_weights  = weights[2, :]
     KU_weights  = weights[3, :]
+    lmbda       = weights[4, :]
 
     # cm_mult  = 1.0;
     # loc_mult = 1.0;
@@ -90,12 +89,15 @@ class MattingCNN(nn.Module):
 
     A, b = self.system(
         single_sample, CM_weights, LOC_weights,
-        IU_weights, KU_weights, self.lmbda, N)
+        IU_weights, KU_weights, lmbda, N)
     matte = self.solver(A, b)
     residual = self.solver.err
     matte = matte.view(1, 1, h, w)
     matte = th.clamp(matte, 0, 1)
-    log.info("CG residual: {:.1f} in {} steps".format(residual, self.solver.steps))
+    log.info("CG residual: {:.1f} in {} steps".format(residual, self.solver.stop_step))
+    if residual < 0:
+      import ipdb; ipdb.set_trace()
+
     return matte
 
 
@@ -108,12 +110,12 @@ class MattingSolver(nn.Module):
   def forward(self, A, b):
     start = time.time()
     x0 = Variable(th.zeros(b.shape[0]).cuda(), requires_grad=False)
-    x_opt, err, steps = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
+    x_opt, err, stop_step = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
     end = time.time()
     if self.verbose:
       log.debug("solve system {:.2f}s".format((end-start)))
     self.err = err
-    self.steps = steps
+    self.stop_step = stop_step
     return x_opt
 
 
@@ -136,7 +138,7 @@ class MattingSystem(nn.Module):
     linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
 
     KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
-    known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda*known, th.Size((N,N)))
+    known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda.mul(known), th.Size((N,N)))
 
     # A = sp.spadd(Lmat, sp.spadd(KU, known))
     # A = sp.spadd(Lcm, sp.spadd(sp.spadd(KU, known), Lcs))
@@ -145,7 +147,6 @@ class MattingSystem(nn.Module):
 
     end = time.time()
     log.debug("prepare system {:.2f}s/im".format((end-start)))
-
 
     return A, b
 

@@ -115,6 +115,7 @@ def main(args, params):
         loss_ifm = loss_fn(ifm, target)
 
         loss.backward()
+        # th.nn.utils.clip_grad_norm(model.parameters(), 1e-1)
         optimizer.step()
         global_step += 1
 
@@ -149,7 +150,7 @@ def main(args, params):
             new_w = []
             means = []
             var = []
-            for ii in range(4):
+            for ii in range(weights.shape[0]):
               w = weights[ii:ii+1, ...]
               mu = w.mean()
               sigma = w.std()
@@ -163,7 +164,7 @@ def main(args, params):
                   means[0], var[0],
                   means[1], var[1],
                   means[2], var[2],
-                  means[3], var[3], model.lmbda.data[0]), per_row=4)
+                  means[3], var[3], means[4]), per_row=4)
             matte_viz.update(
                 imgs,
                 caption="Epoch {:.1f} | loss = {:.6f} | target, output, vanilla, diff".format(
