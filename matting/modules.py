@@ -72,6 +72,7 @@ class MattingCNN(nn.Module):
     KU_weights  = weights[3, :]
     lmbda       = weights[4, :]
 
+    # TODO: this is to set fix weights for debugging
     # cm_mult  = 1.0;
     # loc_mult = 1.0;
     # iu_mult  = 0.01;
@@ -383,6 +384,7 @@ class AlphaGradientNorm(nn.Module):
     dx = self.dx(alpha[:, :, :-1, :])
     dy = self.dy(alpha[:, :, :, :-1])
     return th.abs(dx) + th.abs(dy)
+
 
 class AlphaLoss(nn.Module):
   def __init__(self, sparsity_weight=1.0, gradient_weight=1.0, epsilon=1e-6, blur_std=1, truncation=3):
