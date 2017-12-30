@@ -160,11 +160,11 @@ def main(args, params):
             weights = th.cat(new_w, 0)
             weights = th.clamp(weights, 0, 1)
             weights_viz.update(weights.cpu().data,
-                caption="CM {:.4f} ({:.4f})| LOC {:.4f} ({:.4f}) | IU {:.4f} ({:.4f}) | KU {:.4f} ({:.4f}) | lambda {:4f}".format(
+                caption="CM {:.4f} ({:.4f})| LOC {:.4f} ({:.4f}) | IU {:.4f} ({:.4f}) | KU {:.4f} ({:.4f})".format(
                   means[0], var[0],
                   means[1], var[1],
                   means[2], var[2],
-                  means[3], var[3], means[4]), per_row=4)
+                  means[3], var[3]), per_row=4)
             matte_viz.update(
                 imgs,
                 caption="Epoch {:.1f} | loss = {:.6f} | target, output, vanilla, diff".format(

@@ -41,18 +41,20 @@ class MattingCNN(nn.Module):
 
     self.cg_steps = cg_steps
 
-    self.net = SkipAutoencoder(4, 5, width=16, depth=5, batchnorm=True, grow_width=False)
+    self.net = SkipAutoencoder(4, 4, width=16, depth=5, batchnorm=True, grow_width=False)
+    self.weight_normalizer = th.nn.Softmax2d()
     self.system = MattingSystem()
     self.solver = MattingSolver(steps=cg_steps)
 
     self.reset_parameters()
 
   def reset_parameters(self):
-    self.net.prediction.bias.data[0] = 1
-    self.net.prediction.bias.data[1] = 1
-    self.net.prediction.bias.data[2] = 1
-    self.net.prediction.bias.data[3] = 1
-    self.net.prediction.bias.data[4] = 1
+    pass
+    # self.net.prediction.bias.data[0] = 1
+    # self.net.prediction.bias.data[1] = 1
+    # self.net.prediction.bias.data[2] = 1
+    # self.net.prediction.bias.data[3] = 1
+    # self.net.prediction.bias.data[4] = 1
     # self.net.prediction.weight.data.normal_(0, 0.001)
 
   def forward(self, sample):
@@ -62,16 +64,19 @@ class MattingCNN(nn.Module):
     N = h*w
     # force non-negative weights
     eps = 1e-8
-    weights = F.relu(self.net(th.cat([sample['image'], sample['trimap']], 1))) + eps
+    weights = self.net(th.cat([sample['image'], sample['trimap']], 1))
+    weights = self.weight_normalizer(weights)
     self.predicted_weights = weights
-    weights = weights.view(5, h*w)
+    weights = weights.view(4, h*w)
 
     CM_weights  = weights[0, :]
     LOC_weights = weights[1, :]
     IU_weights  = weights[2, :]
     KU_weights  = weights[3, :]
-    lmbda       = weights[4, :]
+    # lmbda       = weights[4, :]
 
+    lmbda = Variable(th.from_numpy(np.array([100.0], dtype=np.float32)).cuda(),
+                     requires_grad=False)
     # TODO: this is to set fix weights for debugging
     # cm_mult  = 1.0;
     # loc_mult = 1.0;
