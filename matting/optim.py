@@ -151,9 +151,9 @@ k: int
 
   return result_logs[smallest_ind], err_logs[smallest_ind], k+1
 
-
-def sparse_cg_ib(A, b, x0, gt, steps=1, thresh=1e-4, verbose=False):
+def sparse_cg_ib(A, b, x0, steps=1, thresh=1e-4, verbose=False):  # use intermediate best results
 """Function to perform non conjugate gradients opimisation, use intermediate best results
+
 Parameters
 ----------
 A: Sparse Object from matting.sparse, consisting of torch Variable
@@ -162,8 +162,6 @@ b: Sparse Object from matting.sparse, consisting of torch Variable
     vector of quadratic function
 x0: Sparse Object from matting.sparse, consisting of torch Variable
     starting point of line line_search
-gt: Sparse Object from matting.sparse, consisting of torch Variable
-    groud truth alpha
 steps: int
     max. steps of optimisation
 thresh: float
@@ -178,8 +176,6 @@ err: float
 k: int
     total steps
 """
-  A_mat = A.to_dense()
-  A_mat = np.asarray(A_mat)
   r = b - sp.spmv(A, x0)
   p = r.clone()
   x = x0.clone()
@@ -188,24 +184,21 @@ k: int
   result_logs = []
   err_logs = []
 
-
-  err_gt = np.mean((x0.cpu().data.numpy()-gt.cpu().data.numpy())**2)
-  err_gt_logs = []
-
   for k in range(steps):
     Ap = sp.spmv(A, p)
     alpha = res_old / p.dot(Ap)
+
     x = x +  alpha*p
     r = r - alpha*Ap
     res_new = r.dot(r)
     err = th.sqrt(res_new).data[0]
+
+    # result_logs.append(x)
+    # err_logs.append(res_new.cpu().data.numpy())
+
     result_logs.append(x)
-
-    res_err = b.cpu().data.numpy() - np.matmul(A_mat, x.cpu().data.numpy())
+    res_err = b.cpu().data.numpy() - sp.spmv(A, x).cpu().data.numpy()
     err_logs.append(np.dot(res_err, res_err)**(0.5))
-
-    err_gt = np.mean((x.cpu().data.numpy()-gt.cpu().data.numpy())**2)
-    err_gt_logs.append(err_gt)
 
     if (err < thresh):
       if verbose:
@@ -217,9 +210,75 @@ k: int
     res_old = res_new
 
   smallest_ind = np.argmin(err_logs)
-  sml_gt_ind = np.argmin(err_gt_logs)
   print('total length of logs', len(result_logs))
   print('smallest index', smallest_ind)
-  print('smallest gt index', sml_gt_ind)
+
+  return result_logs[smallest_ind], err_logs[smallest_ind], k+1
+
+
+def sparse_cg_ib2(A, b, x0, steps=1, thresh=1e-4, verbose=False):  # use intermediate best results
+"""Function to perform non conjugate gradients opimisation, use intermediate best results and
+    CG steps should be greater equal to 5.
+
+Parameters
+----------
+A: Sparse Object from matting.sparse, consisting of torch Variable
+    matrix of quadratic function
+b: Sparse Object from matting.sparse, consisting of torch Variable
+    vector of quadratic function
+x0: Sparse Object from matting.sparse, consisting of torch Variable
+    starting point of line line_search
+steps: int
+    max. steps of optimisation
+thresh: float
+    threshold for convergence
+
+Returns
+-------
+x: Sparse Object from matting.sparse, consisting of torch Variable
+    optimisation results
+err: float
+    final error
+k: int
+    total steps
+"""
+
+  r = b - sp.spmv(A, x0)
+  p = r.clone()
+  x = x0.clone()
+  res_old = r.dot(r)
+  err = -1
+  result_logs = []
+  err_logs = []
+
+  for k in range(steps):
+    Ap = sp.spmv(A, p)
+    alpha = res_old / p.dot(Ap)
+
+    x = x +  alpha*p
+    r = r - alpha*Ap
+    res_new = r.dot(r)
+    err = th.sqrt(res_new).data[0]
+
+    # result_logs.append(x)
+    # err_logs.append(res_new.cpu().data.numpy())
+
+    result_logs.append(x)
+    res_err = b.cpu().data.numpy() - sp.spmv(A, x).cpu().data.numpy()
+    err_logs.append(np.dot(res_err, res_err)**(0.5))
+
+    if (err < thresh):
+      if verbose:
+        log.info("CG converged with residual {}.".format(err))
+      break
+    if verbose:
+      log.info("CG step {} / {}, residual = {:g}".format(k+1, steps, err))
+    p = r + res_new/res_old*p
+    res_old = res_new
+
+  smallest_ind = np.argmin(err_logs)
+  smallest_ind = max(smallest_ind, 5)
+  print('total length of logs', len(result_logs))
+  print('smallest index', smallest_ind)
 
   return result_logs[smallest_ind], err_logs[smallest_ind], k+1
