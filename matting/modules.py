@@ -27,6 +27,9 @@ from torchlib.image import crop_like
 log = logging.getLogger(__name__)
 
 import scipy.sparse as ssp
+
+th.set_default_tensor_type('torch.DoubleTensor')
+
 def matlab_dump(sp, M, N):
   sp2 = ssp.csr_matrix(
       (sp.val.cpu().data.numpy(),
@@ -75,7 +78,7 @@ class MattingCNN(nn.Module):
     KU_weights  = weights[3, :]
     # lmbda       = weights[4, :]
 
-    lmbda = Variable(th.from_numpy(np.array([100.0], dtype=np.float32)).cuda(),
+    lmbda = Variable(th.from_numpy(np.array([100.0], dtype=np.float64)).cuda(),
                      requires_grad=False)
     # TODO: this is to set fix weights for debugging
     # cm_mult  = 1.0;
@@ -83,10 +86,10 @@ class MattingCNN(nn.Module):
     # iu_mult  = 0.01;
     # ku_mult  = 0.05;
     # lmbda    = 100.0;
-    # CM_weights  = Variable(cm_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    # LOC_weights = Variable(loc_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    # IU_weights  = Variable(iu_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
-    # KU_weights  = Variable(ku_mult*th.from_numpy(np.ones((N,), dtype=np.float32)).cuda())
+    # CM_weights  = Variable(cm_mult*th.from_numpy(np.ones((N,), dtype=np.float64)).cuda())
+    # LOC_weights = Variable(loc_mult*th.from_numpy(np.ones((N,), dtype=np.float64)).cuda())
+    # IU_weights  = Variable(iu_mult*th.from_numpy(np.ones((N,), dtype=np.float64)).cuda())
+    # KU_weights  = Variable(ku_mult*th.from_numpy(np.ones((N,), dtype=np.float64)).cuda())
 
     single_sample = {}
     for k in sample.keys():
@@ -116,7 +119,7 @@ class MattingSolver(nn.Module):
   def forward(self, A, b):
     start = time.time()
     x0 = Variable(th.zeros(b.shape[0]).cuda(), requires_grad=False)
-    x_opt, err, stop_step = optim.sparse_cg(A, b, x0, steps=self.steps, verbose=self.verbose)
+    x_opt, err, stop_step = optim.sparse_cg(A, b, x0, steps=self.steps, thresh=1e-12, verbose=self.verbose)
     end = time.time()
     if self.verbose:
       log.debug("solve system {:.2f}s".format((end-start)))
@@ -124,21 +127,20 @@ class MattingSolver(nn.Module):
     self.stop_step = stop_step
     return x_opt
 
-
 class MattingSystem(nn.Module):
   """docstring for MattingSystem"""
   def __init__(self):
     super(MattingSystem, self).__init__()
-    
+
   def forward(self, sample, CM_weights, LOC_weights, IU_weights, KU_weights, lmbda, N):
     start = time.time()
-    Lcm = self._color_mixture(N, sample, CM_weights)
-    Lmat = self._matting_laplacian(N, sample, LOC_weights)
-    Lcs = self._intra_unknowns(N, sample, IU_weights)
+    self.Lcm = self._color_mixture(N, sample, CM_weights)
+    self.Lmat = self._matting_laplacian_verbose(N, sample, LOC_weights)
+    self.Lcs = self._intra_unknowns(N, sample, IU_weights)
 
-    kToUconf = sample['kToUconf']
-    known = sample['known']
-    kToU = sample['kToU']
+    kToUconf = sample['kToUconf'].view(-1)
+    known = sample['known'].view(-1)
+    kToU = sample['kToU'].view(-1)
 
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
     linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
@@ -146,9 +148,7 @@ class MattingSystem(nn.Module):
     KU = sp.Sparse(linear_csr_row_idx, linear_idx, KU_weights.mul(kToUconf), th.Size((N,N)))
     known = sp.Sparse(linear_csr_row_idx, linear_idx, lmbda.mul(known), th.Size((N,N)))
 
-    # A = sp.spadd(Lmat, sp.spadd(KU, known))
-    # A = sp.spadd(Lcm, sp.spadd(sp.spadd(KU, known), Lcs))
-    A = sp.spadd(Lcm, sp.spadd(Lmat, sp.spadd(sp.spadd(KU, known), Lcs)))
+    A = sp.spadd(self.Lcm, sp.spadd(self.Lmat, sp.spadd(sp.spadd(KU, known), self.Lcs)))
     b = sp.spmv(sp.spadd(KU, known), kToU)
 
     end = time.time()
@@ -156,13 +156,29 @@ class MattingSystem(nn.Module):
 
     return A, b
 
+
   def _color_mixture(self, N, sample, CM_weights):
     # CM
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
     linear_csr_row_idx = Variable(th.from_numpy(np.arange(N+1, dtype=np.int32)).cuda())
 
-    Wcm = sp.from_coo(sample["Wcm_row"], sample["Wcm_col"].view(-1),
-                      sample["Wcm_data"], th.Size((N, N)))
+    # Wcm = sp.from_coo(sample["Wcm_row"], sample["Wcm_col"].view(-1),
+                      # sample["Wcm_data"], th.Size((N, N)))
+
+    # Wcm = sp.from_coo(sample["CM_inInd"], sample["CM_neighInd"].view(-1),
+    #                     sample["CM_flows"].view(-1), th.Size((N, N)))
+
+    flows = sample['CM_flows']
+    flow_sz = flows.shape[1]
+
+    inInd = sample["CM_inInd"].clone().view(-1, 1).repeat(1, flow_sz)
+    # neighInd = sample["CM_neighInd"].contiguous()
+    neighInd = sample["CM_neighInd"].clone()
+
+    Wcm = sp.from_coo(inInd.view(-1), neighInd.view(-1),
+                        flows.view(-1), th.Size((N, N)))
+
+    # Wcm = sp.transpose(Wcm)
 
     diag = sp.Sparse(linear_csr_row_idx, linear_idx, CM_weights, th.Size((N, N)))
     Wcm = sp.spmm(diag, Wcm)
@@ -174,22 +190,91 @@ class MattingSystem(nn.Module):
     Lcm = sp.spmm(Lcmt, Lcm)
     return Lcm
 
+  def _matting_laplacian_old_version(self, N, sample, LOC_weights):
+  """Function to build laplacian from LOC_flows. This function matches old version of matlab code.
+  However, this function contains bugs, see comments below for details.
+
+  Parameters
+  ----------
+  N: int
+        dim of linear system
+  sample: list of pytorch variable
+        flow data from matlab, initialised as torch variable
+  LOC_weights: pytorch tensor
+        weights for Lmat
+  Returns
+  -------
+  Lmat: Sparse Object from matting.sparse, consisting of torch Variable
+      linear system of LOC laplacian
+  """
+    linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
+    rows = sample['LOC_flowRows']
+    cols = sample['LOC_flowCols']
+    flows = sample['LOC_flows']
+    Wmat = sp.from_coo(rows.view(-1), cols.view(-1), flows.view(-1), th.Size((N, N)))
+
+    #
+    Wmatt = sp.transpose(Wmat)
+    Wmat = sp.spadd(Wmat, Wmatt) # computation of sp.spadd causes bugs; but sp.spadd works alright in other functions
+    Wmat.mul_(0.5)
+
+    ones = Variable(th.ones(N).cuda())
+    row_sum = sp.spmv(Wmat, ones)
+    Wmat.mul_(-1.0)
+
+    diag = sp.from_coo(linear_idx, linear_idx, row_sum, th.Size((N, N)))
+
+    Lmat = sp.spadd(diag, Wmat) # computation of sp.spadd causes bugs; but sp.spadd works alright in other functions
+
+    l = matlab_dump(Lmat, N, N)
+    scipy.io.savemat("Lmatw.mat", {
+      "py_Lmatw_row": l.row,
+      "py_Lmatw_col": l.col,
+      "py_Lmatw_data": l.data,
+      })
+
+    return Wmat
+
   def _matting_laplacian(self, N, sample, LOC_weights):
+  """Function to build laplacian from LOC_flows. This function matches the up-to-date version of matlab code,
+  i.e. the function <mattingLaplacian_pyth.m> in the folder deepifm/abmt/affinityToLaplacian
+
+  Parameters
+  ----------
+  N: int
+        dim of linear system
+  sample: list of pytorch variable
+        flow data from matlab, initialised as torch variable, shape of sample["LOC_inInd"] is num(indInd) x 1
+        shape of sample['LOC_flows'] is 9 x 9 x num(inInd); 9 = windowSize^2 = (2 * windowRadius + 1)^2;
+  LOC_weights: pytorch tensor
+        weights for Lmat
+  Returns
+  -------
+  Lmat: Sparse Object from matting.sparse, consisting of torch Variable
+        linear system of LOC laplacian
+"""
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
 
-    w = sample['image'].shape[-1]
-    h = sample['image'].shape[-2]
+    # w = sample['image'].shape[-1]
+    # h = sample['image'].shape[-2]
+    h = sample['image'].shape[0]     # image has shape [h, w, c]
+    w = sample['image'].shape[1]
 
     # Matting Laplacian
-    inInd = sample["LOC_inInd"]
+    inInd = sample["LOC_inInd"].view(-1,1)
     weights = LOC_weights[inInd.long().view(-1)]
+    non_neg_weights = weights.mul(weights) # create non-negative weights
     flows = sample['LOC_flows']
     flow_sz = flows.shape[0]
-    tiled_weights = weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)
+    tiled_weights = non_neg_weights.view(1, 1, -1).repeat(flow_sz, flow_sz, 1)  #use non negative weights
     flows = flows.mul(tiled_weights)
 
+    # neighInds = th.cat(
+        # [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
+
+    # need to use h instead of w; the order of concatenation should be consistant with matlab
     neighInds = th.cat(
-        [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
+        [inInd-1-h, inInd-h, inInd+1-h, inInd-1, inInd, inInd+1, inInd-1+h, inInd+h, inInd+1+h], 1)
 
     for i in range(9):
       iRows = neighInds[:, i:i+1].clone().repeat(1, 9)
@@ -211,17 +296,24 @@ class MattingSystem(nn.Module):
     return Lmat
 
   def _matting_laplacian_verbose(self, N, sample, LOC_weights):
+    """(verbose version) Function to build laplacian from LOC_flows. The matlab version (not implemented) of this function is similar to the
+    function <mattingLaplacian_pyth.m> in the folder deepifm/abmt/affinityToLaplacian
+    To generate affinity data for this function, the correspondings code in deepifm/abmt/precomputeAffinities.m need to be uncommented
+    """
     linear_idx = Variable(th.from_numpy(np.arange(N, dtype=np.int32)).cuda())
 
-    w = sample['image'].shape[-1]
-    h = sample['image'].shape[-2]
+    h = sample['image'].shape[0] # image has shape [h, w, c]
+    w = sample['image'].shape[1]
 
     # Matting Laplacian
     inInd = sample["LOC_inInd"]
     scipy.io.savemat("indices.mat", {
       "pyLOC_inInd": inInd.cpu().data.numpy(),
       })
+
     weights = LOC_weights[inInd.long().view(-1)]
+    non_neg_weights = weights.mul(weights)
+
     flows1 = sample['LOC_flows1']
     flows2 = sample['LOC_flows2']
     flows3 = sample['LOC_flows3']
@@ -232,7 +324,8 @@ class MattingSystem(nn.Module):
     flows8 = sample['LOC_flows8']
     flows9 = sample['LOC_flows9']
     flow_sz = flows1.shape[1]
-    tiled_weights = weights.view(-1, 1).repeat(1, flow_sz)
+    # tiled_weights = weights.view(-1, 1).repeat(1, flow_sz)
+    tiled_weights = non_neg_weights.view(-1, 1).repeat(1, flow_sz)     # use non-negative weights
 
     flows1 = flows1.mul(tiled_weights)
     flows2 = flows2.mul(tiled_weights)
@@ -244,8 +337,20 @@ class MattingSystem(nn.Module):
     flows8 = flows8.mul(tiled_weights)
     flows9 = flows9.mul(tiled_weights)
 
+    inInd = inInd.view(-1,1)
+    # neighInds = th.cat(
+    #     [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
+    # scipy.io.savemat("neigh_indices.mat", {
+    #   "pyLOC_neighInd": neighInds.cpu().data.numpy(),
+    #   })
+
+
+    # neighInds = th.cat(
+        # [inInd-1-h, inInd-1, inInd-1+h, inInd-h, inInd, inInd+h, inInd+1-h, inInd+1, inInd+1+h], 1)
+
+    # need to use h instead of w; order of concatenation should be consistant with matlab
     neighInds = th.cat(
-        [inInd-1-w, inInd-1, inInd-1+w, inInd-w, inInd, inInd+w, inInd+1-w, inInd+1, inInd+1+w], 1)
+        [inInd-1-h, inInd-h, inInd+1-h, inInd-1, inInd, inInd+1, inInd-1+h, inInd+h, inInd+1+h], 1)
     scipy.io.savemat("neigh_indices.mat", {
       "pyLOC_neighInd": neighInds.cpu().data.numpy(),
       })
@@ -329,8 +434,8 @@ class MattingSystem(nn.Module):
     flow_sz = flows.shape[1]
     flows = flows.mul(weights.view(-1, 1).repeat(1, flow_sz))
     neighInd = sample["IU_neighInd"].contiguous()
-    inInd = sample["IU_inInd"].clone()
-    inInd = inInd.repeat(1, neighInd.shape[1])
+    inInd = sample["IU_inInd"].clone().view(-1, 1).repeat(1, flow_sz)
+    # inInd = inInd.repeat(1, neighInd.shape[1])
     Wcs = sp.from_coo(inInd.view(-1), neighInd.view(-1), flows.data.view(-1), th.Size((N, N)))
     Wcst = sp.transpose(Wcs)
     Wcs = sp.spadd(Wcs, Wcst)
@@ -348,7 +453,7 @@ class CharbonnierLoss(nn.Module):
     super(CharbonnierLoss, self).__init__()
     self.epsilon = epsilon
 
-  def forward(self, output, target): 
+  def forward(self, output, target):
     diff  = th.sqrt((th.pow(output-target, 2) + self.epsilon*self.epsilon))
     return diff.mean()
 
@@ -377,11 +482,11 @@ class AlphaGradientNorm(nn.Module):
 
     kernel = np.zeros((2*n+1, 1))
     kernel[n, 0] = 1.0
-    kernel = filters.gaussian_filter1d(kernel, self.std, truncate=self.truncation).astype(np.float32)
+    kernel = filters.gaussian_filter1d(kernel, self.std, truncate=self.truncation).astype(np.float64)
     self.gaussian_x.weight.data[0, 0, 0, :] = th.from_numpy(kernel)
     self.gaussian_y.weight.data[0, 0, :, 0] = th.from_numpy(kernel)
-    self.dx.weight.data[0, 0, 0, :] = th.from_numpy(np.array([-1, 1], dtype=np.float32))
-    self.dy.weight.data[0, 0, :, 0] = th.from_numpy(np.array([-1, 1], dtype=np.float32))
+    self.dx.weight.data[0, 0, 0, :] = th.from_numpy(np.array([-1, 1], dtype=np.float64))
+    self.dy.weight.data[0, 0, :, 0] = th.from_numpy(np.array([-1, 1], dtype=np.float64))
 
   def forward(self, alpha):
     alpha = self.gaussian_x(alpha)
@@ -401,7 +506,7 @@ class AlphaLoss(nn.Module):
     self.sparsity = AlphaSparsity()
     self.gradient = AlphaGradientNorm()
 
-  def forward(self, output, target): 
+  def forward(self, output, target):
     diff  = th.sqrt((th.pow(output-target, 2) + self.epsilon*self.epsilon))
     sparsity = self.sparsity_weight*self.sparsity(target)
     gradient_norm = self.gradient_weight*self.gradient(target)

@@ -69,7 +69,6 @@ x0: Sparse Object from matting.sparse, consisting of torch Variable
     starting point of line line_search
 p: Sparse Object from matting.sparse, consisting of torch Variable
     conjugate direction
-
 Returns
 -------
 output: float32
@@ -101,7 +100,6 @@ steps: int
     max. steps of optimisation
 thresh: float
     threshold for convergence
-
 Returns
 -------
 x: Sparse Object from matting.sparse, consisting of torch Variable
@@ -153,7 +151,6 @@ k: int
 
 def sparse_cg_ib(A, b, x0, steps=1, thresh=1e-4, verbose=False):  # use intermediate best results
 """Function to perform non conjugate gradients opimisation, use intermediate best results
-
 Parameters
 ----------
 A: Sparse Object from matting.sparse, consisting of torch Variable
@@ -166,7 +163,6 @@ steps: int
     max. steps of optimisation
 thresh: float
     threshold for convergence
-
 Returns
 -------
 x: Sparse Object from matting.sparse, consisting of torch Variable
@@ -219,7 +215,6 @@ k: int
 def sparse_cg_ib2(A, b, x0, steps=1, thresh=1e-4, verbose=False):  # use intermediate best results
 """Function to perform non conjugate gradients opimisation, use intermediate best results and
     CG steps should be greater equal to 5.
-
 Parameters
 ----------
 A: Sparse Object from matting.sparse, consisting of torch Variable
@@ -232,7 +227,6 @@ steps: int
     max. steps of optimisation
 thresh: float
     threshold for convergence
-
 Returns
 -------
 x: Sparse Object from matting.sparse, consisting of torch Variable

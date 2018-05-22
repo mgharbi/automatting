@@ -54,13 +54,15 @@ import matting.modules as mmo
 
 log = logging.getLogger(__name__)
 
+th.set_default_tensor_type('torch.DoubleTensor')
+
 raw_large_sys = spio.loadmat('largesys.mat', squeeze_me=True)
-Atri_large = raw_large_sys['Atri'].astype(np.float32)
-Lcm_large = raw_large_sys['Lcm'].astype(np.float32)
-Lmat_large = raw_large_sys['Lmat'].astype(np.float32)
-Luu_large = raw_large_sys['Luu'].astype(np.float32)
-alpha_large = raw_large_sys['alphaHat'].astype(np.float32)
-conf_large = raw_large_sys['conf'].astype(np.float32)
+Atri_large = raw_large_sys['Atri'].astype(np.float64)
+Lcm_large = raw_large_sys['Lcm'].astype(np.float64)
+Lmat_large = raw_large_sys['Lmat'].astype(np.float64)
+Luu_large = raw_large_sys['Luu'].astype(np.float64)
+alpha_large = raw_large_sys['alphaHat'].astype(np.float64)
+conf_large = raw_large_sys['conf'].astype(np.float64)
 
 mat_size = Atri_large.shape[0]
 
@@ -73,16 +75,16 @@ Lmat_sp = sp.Sparse(Variable(th.from_numpy(Lmat_large.indptr).cuda()), Variable(
 Luu_sp = sp.Sparse(Variable(th.from_numpy(Luu_large.indptr).cuda()), Variable(th.from_numpy(Luu_large.indices).cuda()), Variable(th.from_numpy(Luu_large.data).cuda()), th.Size((Luu_large.shape[0], Luu_large.shape[1])))
 
 Conf_sp = ssp.csr_matrix(ssp.spdiags(conf_large, 0, len(conf_large), len(conf_large))).tocoo()
-Conf_sp = sp.from_coo(Variable(th.from_numpy(Conf_sp.row).cuda()), Variable(th.from_numpy(Conf_sp.col).cuda()), Variable(th.from_numpy(Conf_sp.data.astype(np.float32)).cuda()), th.Size((Conf_sp.shape[0], Conf_sp.shape[1])))
+Conf_sp = sp.from_coo(Variable(th.from_numpy(Conf_sp.row).cuda()), Variable(th.from_numpy(Conf_sp.col).cuda()), Variable(th.from_numpy(Conf_sp.data.astype(np.float64)).cuda()), th.Size((Conf_sp.shape[0], Conf_sp.shape[1])))
 
-b = Variable(th.from_numpy(conf_large.astype(np.float32)))
-b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float32)).cuda(), requires_grad=False)
+b = Variable(th.from_numpy(conf_large.astype(np.float64)))
+b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float64)).cuda(), requires_grad=False)
 
-alpha_hat = Variable(th.from_numpy(alpha_large.astype(np.float32)).cuda(), requires_grad=False)
-alpha = Variable(th.from_numpy(alpha.astype(np.float32)).cuda(), requires_grad=False)
+alpha_hat = Variable(th.from_numpy(alpha_large.astype(np.float64)).cuda(), requires_grad=False)
+alpha = Variable(th.from_numpy(alpha.astype(np.float64)).cuda(), requires_grad=False)
 
-x0 = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float32)).cuda(), requires_grad=False)
-x_zero = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float32)).cuda(), requires_grad=False)
+x0 = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float64)).cuda(), requires_grad=False)
+x_zero = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float64)).cuda(), requires_grad=False)
 
 
 # conjugate gradient solver
@@ -126,7 +128,7 @@ class Net_v02(th.nn.Module):
 
         mat_idx = np.array([i for i in range(mat_size)]).astype(np.int32)
 
-        self.x3 = Variable(th.from_numpy(np.array([0.1 for _ in range(mat_size)]).astype(np.float32)).cuda(), requires_grad=True)
+        self.x3 = Variable(th.from_numpy(np.array([0.1 for _ in range(mat_size)]).astype(np.float64)).cuda(), requires_grad=True)
         self.mat_x3 = sp.from_coo(Variable(th.from_numpy(mat_idx).cuda(), requires_grad=False), Variable(th.from_numpy(mat_idx).cuda(), requires_grad=False), self.x3, th.Size((mat_size, mat_size)))
 
 
@@ -163,11 +165,11 @@ for epoch in range(1000):
     Luu_sp = sp.Sparse(Variable(th.from_numpy(Luu_large.indptr).cuda()), Variable(th.from_numpy(Luu_large.indices).cuda()), Variable(th.from_numpy(Luu_large.data).cuda()), th.Size((Luu_large.shape[0], Luu_large.shape[1])))
 
     Conf_sp = ssp.csr_matrix(ssp.spdiags(conf_large, 0, len(conf_large), len(conf_large))).tocoo()
-    Conf_sp = sp.from_coo(Variable(th.from_numpy(Conf_sp.row).cuda()), Variable(th.from_numpy(Conf_sp.col).cuda()), Variable(th.from_numpy(Conf_sp.data.astype(np.float32)).cuda()), th.Size((Conf_sp.shape[0], Conf_sp.shape[1])))
+    Conf_sp = sp.from_coo(Variable(th.from_numpy(Conf_sp.row).cuda()), Variable(th.from_numpy(Conf_sp.col).cuda()), Variable(th.from_numpy(Conf_sp.data.astype(np.float64)).cuda()), th.Size((Conf_sp.shape[0], Conf_sp.shape[1])))
 
-    b = Variable(th.from_numpy(conf_large.astype(np.float32)))
-    b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float32)).cuda(), requires_grad=False)
-    alpha_hat = Variable(th.from_numpy(alpha_large.astype(np.float32)).cuda(), requires_grad=False)
+    b = Variable(th.from_numpy(conf_large.astype(np.float64)))
+    b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float64)).cuda(), requires_grad=False)
+    alpha_hat = Variable(th.from_numpy(alpha_large.astype(np.float64)).cuda(), requires_grad=False)
 
     pred = net(Atri_sp, Lcm_sp, Lmat_sp, Luu_sp, Conf_sp, alpha_hat, b_sp, x0, steps = 20)
 
@@ -184,7 +186,7 @@ for epoch in range(1000):
     aux_res = []
     for _ in range(3):
         x0, res = validation(Atri_sp, Lcm_sp, Lmat_sp, Luu_sp, Conf_sp, alpha_hat, b_sp, x0, alpha, net.x1, net.x2, net.x3, valid_steps = 100)
-        aux_x0.append(x0.cpu().data.numpy().astype(np.float32))
+        aux_x0.append(x0.cpu().data.numpy().astype(np.float64))
         aux_res.append(res)
 
     smallest_ind = np.argmin(aux_res)

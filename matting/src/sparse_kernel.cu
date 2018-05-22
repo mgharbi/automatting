@@ -4,8 +4,8 @@
 extern THCState *state;
 
 __global__ void spmv_backward_matrix_kernel(
-    const int* p_cooRow, const int* p_csrCol, const float* p_vector,
-    const float* p_grad_output, float* p_grad_matrix,
+    const int* p_cooRow, const int* p_csrCol, const double* p_vector,
+    const double* p_grad_output, double* p_grad_matrix,
     const int rows, const int cols, const int nnz) {
   const int64_t idx = blockIdx.x*blockDim.x + threadIdx.x;
   if (idx < nnz) {
@@ -17,14 +17,14 @@ __global__ void spmv_backward_matrix_kernel(
 
 
 void spmv_backward_matrix_cuda(
-    const int* p_cooRow, const int* p_csrCol, const float* p_vector,
-    const float* p_grad_output, float* p_grad_matrix,
+    const int* p_cooRow, const int* p_csrCol, const double* p_vector,
+    const double* p_grad_output, double* p_grad_matrix,
     const int rows, const int cols, const int nnz) {
 
   const int64_t block_sz = 512;
   const int64_t nblocks = (nnz + block_sz - 1) / block_sz;
   spmv_backward_matrix_kernel<<<nblocks, block_sz, 0, THCState_getCurrentStream(state)>>>(
-      p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix, 
+      p_cooRow, p_csrCol, p_vector, p_grad_output, p_grad_matrix,
       rows, cols, nnz);
   THCudaCheck(cudaPeekAtLastError());
 }
@@ -32,10 +32,10 @@ void spmv_backward_matrix_cuda(
 
 
 __global__ void spadd_backward_kernel(
-      const int* p_csr_rowA, const int* p_csr_colA, float* p_gradA, const int nnzA,
-      const int* p_csr_rowB, const int* p_csr_colB, float* p_gradB, const int nnzB,
-      const int* p_coo_rowC, const int* p_csr_colC, const float* p_gradC, const int nnzC,
-      const float alpha, const float beta, const int rows, const int cols) {
+      const int* p_csr_rowA, const int* p_csr_colA, double* p_gradA, const int nnzA,
+      const int* p_csr_rowB, const int* p_csr_colB, double* p_gradB, const int nnzB,
+      const int* p_coo_rowC, const int* p_csr_colC, const double* p_gradC, const int nnzC,
+      const double alpha, const double beta, const int rows, const int cols) {
   const int64_t idx = blockIdx.x*blockDim.x + threadIdx.x;
   if (idx < nnzC) {
     int row = p_coo_rowC[idx];
@@ -68,10 +68,10 @@ __global__ void spadd_backward_kernel(
 
 
 void spadd_backward_cuda(
-      const int* p_csr_rowA, const int* p_csr_colA, float* p_gradA, const int nnzA,
-      const int* p_csr_rowB, const int* p_csr_colB, float* p_gradB, const int nnzB,
-      const int* p_coo_rowC, const int* p_csr_colC, const float* p_gradC, const int nnzC,
-      const float alpha, const float beta, const int rows, const int cols) {
+      const int* p_csr_rowA, const int* p_csr_colA, double* p_gradA, const int nnzA,
+      const int* p_csr_rowB, const int* p_csr_colB, double* p_gradB, const int nnzB,
+      const int* p_coo_rowC, const int* p_csr_colC, const double* p_gradC, const int nnzC,
+      const double alpha, const double beta, const int rows, const int cols) {
 
   const int64_t block_sz = 512;
   const int64_t nblocks = (nnzC + block_sz - 1) / block_sz;
@@ -86,10 +86,10 @@ void spadd_backward_cuda(
 
 
 __global__ void matmul_preserve_sparsity_kernel(
-      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1,
+      const int* p_csr_row1, const int* p_csr_col1, const double* p_data1,
 
-      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2,
-      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out, const int nnz_out)
+      const int* p_csr_row2, const int* p_csr_col2, const double* p_data2,
+      const int* p_coo_row_out, const int* p_coo_col_out, double* p_out, const int nnz_out)
 {
   const int64_t idx = blockIdx.x*blockDim.x + threadIdx.x;
   if (idx < nnz_out) {
@@ -102,7 +102,7 @@ __global__ void matmul_preserve_sparsity_kernel(
     int end1 = p_csr_row1[row+1];
     int end2 = p_csr_row2[col+1];
 
-    float sum = 0.0f;
+    double sum = 0.0f;
     while(ptr1 < end1 && ptr2 < end2) {
       int col1 = p_csr_col1[ptr1];
       int col2 = p_csr_col2[ptr2];
@@ -125,12 +125,12 @@ __global__ void matmul_preserve_sparsity_kernel(
 
 
 /**
- * in1.in2(T) 
+ * in1.in2(T)
  */
 void matmul_preserve_sparsity_cuda(
-      const int* p_csr_row1, const int* p_csr_col1, const float* p_data1,
-      const int* p_csr_row2, const int* p_csr_col2, const float* p_data2,
-      const int* p_coo_row_out, const int* p_coo_col_out, float* p_out,
+      const int* p_csr_row1, const int* p_csr_col1, const double* p_data1,
+      const int* p_csr_row2, const int* p_csr_col2, const double* p_data2,
+      const int* p_coo_row_out, const int* p_coo_col_out, double* p_out,
       const int nnz_out) {
 
   const int64_t block_sz = 512;

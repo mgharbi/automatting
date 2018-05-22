@@ -6,12 +6,13 @@ from torch.autograd import Variable
 
 import scipy.sparse as scp
 
+th.set_default_tensor_type('torch.DoubleTensor')
 
 class Sparse(object):
   """"""
   def __init__(self, csr_row_idx, col_idx, val, size):
-    if csr_row_idx.numel() != size[0]+1:
-      raise ValueError("CSR row should have rows+1 elements")
+    # if csr_row_idx.numel() != size[0]+1:
+      # raise ValueError("CSR row should have rows+1 elements")
     if col_idx.numel() != val.numel():
       raise ValueError("Col and Val should have the same number of elements.")
     if col_idx.numel() > size[0]*size[1]:

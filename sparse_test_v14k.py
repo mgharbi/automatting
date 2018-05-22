@@ -52,6 +52,8 @@ import matting.modules as mmo
 
 log = logging.getLogger(__name__)
 
+th.set_default_tensor_type('torch.DoubleTensor')
+
 raw_data = spio.loadmat('smallSys/smallSysData.mat', squeeze_me=True)
 Atri_raw = raw_data['Atri']
 Lcm_raw = raw_data['Lcm']
@@ -80,41 +82,41 @@ param1 = 1.0
 param2 = 1.0
 param3 = diag
 
-Atri = Variable(th.from_numpy(Atri_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Lcm = Variable(th.from_numpy(Lcm_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Lcm_init= Variable(th.from_numpy((param1 * Lcm_raw).astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Lmat = Variable(th.from_numpy(Lmat_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Lmat_init = Variable(th.from_numpy((param2 * Lmat_raw).astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Luu = Variable(th.from_numpy(Luu_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-Luu_init = Variable(th.from_numpy((np.matmul(np.matmul(param3, Luu_raw), param3)).astype(np.float32).reshape([1,1,1600,1600])).cuda())
-b = Variable(th.from_numpy(b_raw.astype(np.float32)))
-alpha = Variable(th.from_numpy(alpha_raw.astype(np.float32)).cuda())
+Atri = Variable(th.from_numpy(Atri_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Lcm = Variable(th.from_numpy(Lcm_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Lcm_init= Variable(th.from_numpy((param1 * Lcm_raw).astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Lmat = Variable(th.from_numpy(Lmat_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Lmat_init = Variable(th.from_numpy((param2 * Lmat_raw).astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Luu = Variable(th.from_numpy(Luu_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+Luu_init = Variable(th.from_numpy((np.matmul(np.matmul(param3, Luu_raw), param3)).astype(np.float64).reshape([1,1,1600,1600])).cuda())
+b = Variable(th.from_numpy(b_raw.astype(np.float64)))
+alpha = Variable(th.from_numpy(alpha_raw.astype(np.float64)).cuda())
 
 # convert torch Variable in sparse_cg
 Atri_sp = ssp.csr_matrix(Atri.cpu().data.numpy()[0,0]).tocoo()
-Atri_sp = sp.from_coo(Variable(th.from_numpy(Atri_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Atri_sp.shape[0], Atri_sp.shape[1])))
+Atri_sp = sp.from_coo(Variable(th.from_numpy(Atri_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Atri_sp.shape[0], Atri_sp.shape[1])))
 
 Lcm_sp = ssp.csr_matrix(Lcm.cpu().data.numpy()[0,0]).tocoo()
-Lcm_sp = sp.from_coo(Variable(th.from_numpy(Lcm_sp.row).cuda()), Variable(th.from_numpy(Lcm_sp.col).cuda()), Variable(th.from_numpy(Lcm_sp.data.astype(np.float32)).cuda()), th.Size((Lcm_sp.shape[0], Lcm_sp.shape[1])))
+Lcm_sp = sp.from_coo(Variable(th.from_numpy(Lcm_sp.row).cuda()), Variable(th.from_numpy(Lcm_sp.col).cuda()), Variable(th.from_numpy(Lcm_sp.data.astype(np.float64)).cuda()), th.Size((Lcm_sp.shape[0], Lcm_sp.shape[1])))
 
 Lcm_init_sp = ssp.csr_matrix(Lcm_init.cpu().data.numpy()[0,0]).tocoo()
-Lcm_init_sp = sp.from_coo(Variable(th.from_numpy(Lcm_init_sp.row).cuda()), Variable(th.from_numpy(Lcm_init_sp.col).cuda()), Variable(th.from_numpy(Lcm_init_sp.data.astype(np.float32)).cuda()), th.Size((Lcm_init_sp.shape[0], Lcm_init_sp.shape[1])))
+Lcm_init_sp = sp.from_coo(Variable(th.from_numpy(Lcm_init_sp.row).cuda()), Variable(th.from_numpy(Lcm_init_sp.col).cuda()), Variable(th.from_numpy(Lcm_init_sp.data.astype(np.float64)).cuda()), th.Size((Lcm_init_sp.shape[0], Lcm_init_sp.shape[1])))
 
 Lmat_sp = ssp.csr_matrix(Lmat.cpu().data.numpy()[0,0]).tocoo()
-Lmat_sp = sp.from_coo(Variable(th.from_numpy(Lmat_sp.row).cuda()), Variable(th.from_numpy(Lmat_sp.col).cuda()), Variable(th.from_numpy(Lmat_sp.data.astype(np.float32)).cuda()), th.Size((Lmat_sp.shape[0], Lmat_sp.shape[1])))
+Lmat_sp = sp.from_coo(Variable(th.from_numpy(Lmat_sp.row).cuda()), Variable(th.from_numpy(Lmat_sp.col).cuda()), Variable(th.from_numpy(Lmat_sp.data.astype(np.float64)).cuda()), th.Size((Lmat_sp.shape[0], Lmat_sp.shape[1])))
 
 Lmat_init_sp = ssp.csr_matrix(Lmat_init.cpu().data.numpy()[0,0]).tocoo()
-Lmat_init_sp = sp.from_coo(Variable(th.from_numpy(Lmat_init_sp.row).cuda()), Variable(th.from_numpy(Lmat_init_sp.col).cuda()), Variable(th.from_numpy(Lmat_init_sp.data.astype(np.float32)).cuda()), th.Size((Lmat_init_sp.shape[0], Lmat_init_sp.shape[1])))
+Lmat_init_sp = sp.from_coo(Variable(th.from_numpy(Lmat_init_sp.row).cuda()), Variable(th.from_numpy(Lmat_init_sp.col).cuda()), Variable(th.from_numpy(Lmat_init_sp.data.astype(np.float64)).cuda()), th.Size((Lmat_init_sp.shape[0], Lmat_init_sp.shape[1])))
 
 Luu_sp = ssp.csr_matrix(Luu.cpu().data.numpy()[0,0]).tocoo()
-Luu_sp = sp.from_coo(Variable(th.from_numpy(Luu_sp.row).cuda()), Variable(th.from_numpy(Luu_sp.col).cuda()), Variable(th.from_numpy(Luu_sp.data.astype(np.float32)).cuda()), th.Size((Luu_sp.shape[0], Luu_sp.shape[1])))
+Luu_sp = sp.from_coo(Variable(th.from_numpy(Luu_sp.row).cuda()), Variable(th.from_numpy(Luu_sp.col).cuda()), Variable(th.from_numpy(Luu_sp.data.astype(np.float64)).cuda()), th.Size((Luu_sp.shape[0], Luu_sp.shape[1])))
 
 Luu_init_sp = ssp.csr_matrix(Luu_init.cpu().data.numpy()[0,0]).tocoo()
-Luu_init_sp = sp.from_coo(Variable(th.from_numpy(Luu_init_sp.row).cuda()), Variable(th.from_numpy(Luu_init_sp.col).cuda()), Variable(th.from_numpy(Luu_init_sp.data.astype(np.float32)).cuda()), th.Size((Luu_init_sp.shape[0], Luu_init_sp.shape[1])))
+Luu_init_sp = sp.from_coo(Variable(th.from_numpy(Luu_init_sp.row).cuda()), Variable(th.from_numpy(Luu_init_sp.col).cuda()), Variable(th.from_numpy(Luu_init_sp.data.astype(np.float64)).cuda()), th.Size((Luu_init_sp.shape[0], Luu_init_sp.shape[1])))
 
-b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float32)).cuda(), requires_grad=False)
-x0 = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float32)).cuda(), requires_grad=False) # will be updated
-x_zero = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float32)).cuda(), requires_grad=False) # will never be updated
+b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float64)).cuda(), requires_grad=False)
+x0 = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float64)).cuda(), requires_grad=False) # will be updated
+x_zero = Variable(th.from_numpy(np.zeros([b.shape[0]]).astype(np.float64)).cuda(), requires_grad=False) # will never be updated
 
 # conjugate gradient solver
 def cg_solver(Atri, Lcm, Lmat, Luu, b, x0, steps = 1, thresh = 1e-7):
@@ -141,13 +143,13 @@ def validation_v2(Atri, Lcm, Lmat, Luu, b, x0, alpha, param1, param2, param3, va
     param3 = np.diag(param3)
     Asys = Atri + param1 * Lcm + param2 * Lmat + np.matmul(np.matmul(param3, Luu), param3)
 
-    Asys = Variable(th.from_numpy(Asys.astype(np.float32).reshape([1,1,1600,1600])).cuda())
+    Asys = Variable(th.from_numpy(Asys.astype(np.float64).reshape([1,1,1600,1600])).cuda())
 
     Asys_sp = ssp.csr_matrix(Asys.cpu().data.numpy()[0,0]).tocoo()
-    Asys_sp = sp.from_coo(Variable(th.from_numpy(Asys_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Asys_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Asys_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Asys_sp.shape[0], Asys_sp.shape[1])))
+    Asys_sp = sp.from_coo(Variable(th.from_numpy(Asys_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Asys_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Asys_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Asys_sp.shape[0], Asys_sp.shape[1])))
 
-    b =  Variable(th.from_numpy(b.astype(np.float32)))
-    b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float32)).cuda(), requires_grad=False)
+    b =  Variable(th.from_numpy(b.astype(np.float64)))
+    b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float64)).cuda(), requires_grad=False)
 
     x0, _, _ = optim.sparse_cg_ib(Asys_sp, b_sp, x0, steps = valid_steps, thresh = 1e-16)
 
@@ -166,25 +168,25 @@ class Net_v02(th.nn.Module):
 
         # tmp_x3 = np.diag([0.1 for _ in range(1600)])
         tmp_x3 = ssp.csr_matrix(param3).tocoo()
-        self.x3 = Variable(th.from_numpy(tmp_x3.data.astype(np.float32)).cuda(), requires_grad=True)
+        self.x3 = Variable(th.from_numpy(tmp_x3.data.astype(np.float64)).cuda(), requires_grad=True)
         self.mat_x3 = sp.from_coo(Variable(th.from_numpy(tmp_x3.row).cuda(), requires_grad=False), Variable(th.from_numpy(tmp_x3.col).cuda(), requires_grad=False), self.x3, th.Size((tmp_x3.shape[0], tmp_x3.shape[1])))
 
 
     def forward(self, Atri, Lcm, Lmat, Luu, b, x0, steps):
 
         Atri_sp = ssp.csr_matrix(Atri.cpu().data.numpy()[0,0]).tocoo()
-        Atri_sp = sp.from_coo(Variable(th.from_numpy(Atri_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Atri_sp.shape[0], Atri_sp.shape[1])))
+        Atri_sp = sp.from_coo(Variable(th.from_numpy(Atri_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Atri_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Atri_sp.shape[0], Atri_sp.shape[1])))
 
         Lcm_sp = ssp.csr_matrix(Lcm.cpu().data.numpy()[0,0]).tocoo()
-        Lcm_sp = sp.from_coo(Variable(th.from_numpy(Lcm_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Lcm_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Lcm_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Lcm_sp.shape[0], Lcm_sp.shape[1])))
+        Lcm_sp = sp.from_coo(Variable(th.from_numpy(Lcm_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Lcm_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Lcm_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Lcm_sp.shape[0], Lcm_sp.shape[1])))
 
         Lmat_sp = ssp.csr_matrix(Lmat.cpu().data.numpy()[0,0]).tocoo()
-        Lmat_sp = sp.from_coo(Variable(th.from_numpy(Lmat_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Lmat_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Lmat_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Lmat_sp.shape[0], Lmat_sp.shape[1])))
+        Lmat_sp = sp.from_coo(Variable(th.from_numpy(Lmat_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Lmat_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Lmat_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Lmat_sp.shape[0], Lmat_sp.shape[1])))
 
         Luu_sp = ssp.csr_matrix(Luu.cpu().data.numpy()[0,0]).tocoo()
-        Luu_sp = sp.from_coo(Variable(th.from_numpy(Luu_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Luu_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Luu_sp.data.astype(np.float32)).cuda(), requires_grad=False), th.Size((Luu_sp.shape[0], Luu_sp.shape[1])))
+        Luu_sp = sp.from_coo(Variable(th.from_numpy(Luu_sp.row).cuda(), requires_grad=False), Variable(th.from_numpy(Luu_sp.col).cuda(), requires_grad=False), Variable(th.from_numpy(Luu_sp.data.astype(np.float64)).cuda(), requires_grad=False), th.Size((Luu_sp.shape[0], Luu_sp.shape[1])))
 
-        b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float32)).cuda(), requires_grad=False)
+        b_sp = Variable(th.from_numpy(b.data.numpy().astype(np.float64)).cuda(), requires_grad=False)
 
         Lcm_sp.mul_(self.x1)
 
@@ -208,15 +210,15 @@ loss_func = th.nn.MSELoss()
 
 for epoch in range(100000):
 
-    Atri = Variable(th.from_numpy(Atri_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-    Lcm = Variable(th.from_numpy(Lcm_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-    Lmat = Variable(th.from_numpy(Lmat_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-    Luu = Variable(th.from_numpy(Luu_raw.astype(np.float32).reshape([1,1,1600,1600])).cuda())
-    b = Variable(th.from_numpy(b_raw.astype(np.float32)))
+    Atri = Variable(th.from_numpy(Atri_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+    Lcm = Variable(th.from_numpy(Lcm_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+    Lmat = Variable(th.from_numpy(Lmat_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+    Luu = Variable(th.from_numpy(Luu_raw.astype(np.float64).reshape([1,1,1600,1600])).cuda())
+    b = Variable(th.from_numpy(b_raw.astype(np.float64)))
 
     pred = net(Atri, Lcm, Lmat, Luu, b, x0, steps = 20)
 
-    x0 = Variable(th.from_numpy(pred.cpu().data.numpy().astype(np.float32)).cuda(), requires_grad=False)
+    x0 = Variable(th.from_numpy(pred.cpu().data.numpy().astype(np.float64)).cuda(), requires_grad=False)
 
     loss = loss_func(pred, alpha)
 

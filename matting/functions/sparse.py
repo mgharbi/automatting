@@ -7,9 +7,9 @@ class Coo2Csr(Function):
   @staticmethod
   def forward(ctx, row_idx, col_idx, val, size):
     ctx.size = size
-    csr_row_idx = row_idx.new() 
-    csr_col_idx = col_idx.new() 
-    csr_val = val.new() 
+    csr_row_idx = row_idx.new()
+    csr_col_idx = col_idx.new()
+    csr_val = val.new()
     permutation = csr_row_idx.new()
     sparse.coo2csr(row_idx, col_idx, val, csr_row_idx, csr_col_idx, csr_val,
                    permutation, size[0], size[1])
@@ -72,11 +72,11 @@ class SpAdd(Function):
 
     rowC = torch.IntTensor().cuda()
     colC = torch.IntTensor().cuda()
-    valC = torch.FloatTensor().cuda()
+    valC = torch.DoubleTensor().cuda()
     sparse.spadd_forward(
-        rowA, colA, valA, 
-        rowB, colB, valB, 
-        rowC, colC, valC, 
+        rowA, colA, valA,
+        rowB, colB, valB,
+        rowC, colC, valC,
         alpha, beta,
         size[0], size[1])
 
@@ -121,9 +121,9 @@ class SpMV(Function):
   def forward(ctx, row, col, val, vector, size):
     ctx.save_for_backward(row, col, val, vector)
     ctx.matrix_size = size
-    output = vector.new() 
+    output = vector.new()
     sparse.spmv(
-        row, col, val, 
+        row, col, val,
         vector, output,
         size[0], size[1], False)
     return output
@@ -138,13 +138,13 @@ class SpMV(Function):
 
     grad_vector = vector.data.new()
     sparse.spmv(
-        row.data, col.data, val.data, 
+        row.data, col.data, val.data,
         grad_output.data, grad_vector,
         size[0], size[1], True)
 
     grad_val = val.data.new()
     sparse.spmv_backward_matrix(
-        row.data, col.data, 
+        row.data, col.data,
         vector.data, grad_output.data, grad_val,
         size[0], size[1])
 
@@ -163,7 +163,7 @@ class SpMM(Function):
     ctx.B_size = sizeB
     rowC = torch.IntTensor().cuda()
     colC = torch.IntTensor().cuda()
-    valC = torch.FloatTensor().cuda()
+    valC = torch.DoubleTensor().cuda()
     sparse.spmm_forward(
         rowA, colA, valA, sizeA[0], sizeA[1],
         rowB, colB, valB, sizeB[0], sizeB[1],
