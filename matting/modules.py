@@ -80,6 +80,7 @@ class MattingCNN(nn.Module):
 
     lmbda = Variable(th.from_numpy(np.array([100.0], dtype=np.float64)).cuda(),
                      requires_grad=False)
+
     # TODO: this is to set fix weights for debugging
     # cm_mult  = 1.0;
     # loc_mult = 1.0;
@@ -435,7 +436,6 @@ class MattingSystem(nn.Module):
     flows = flows.mul(weights.view(-1, 1).repeat(1, flow_sz))
     neighInd = sample["IU_neighInd"].contiguous()
     inInd = sample["IU_inInd"].clone().view(-1, 1).repeat(1, flow_sz)
-    # inInd = inInd.repeat(1, neighInd.shape[1])
     Wcs = sp.from_coo(inInd.view(-1), neighInd.view(-1), flows.data.view(-1), th.Size((N, N)))
     Wcst = sp.transpose(Wcs)
     Wcs = sp.spadd(Wcs, Wcst)
